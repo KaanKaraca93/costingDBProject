@@ -29,7 +29,7 @@ const BASE_SELECT = `
   LEFT JOIN ref_alt_sezon rasz      ON rasz.alt_sezon_code = dp.alt_sezon_code
 `;
 
-async function listParameters({ markaId, altKategoriId, sezonId } = {}) {
+async function listParameters({ markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode } = {}) {
   const conditions = [];
   const values = [];
 
@@ -41,9 +41,21 @@ async function listParameters({ markaId, altKategoriId, sezonId } = {}) {
     values.push(altKategoriId);
     conditions.push(`dp.alt_kategori_id = $${values.length}`);
   }
+  if (segmentId) {
+    values.push(segmentId);
+    conditions.push(`dp.segment_id = $${values.length}`);
+  }
+  if (lifestyleGrupId) {
+    values.push(lifestyleGrupId);
+    conditions.push(`dp.lifestyle_grup_id = $${values.length}`);
+  }
   if (sezonId) {
     values.push(sezonId);
     conditions.push(`dp.sezon_id = $${values.length}`);
+  }
+  if (altSezonCode) {
+    values.push(altSezonCode);
+    conditions.push(`dp.alt_sezon_code = $${values.length}`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';

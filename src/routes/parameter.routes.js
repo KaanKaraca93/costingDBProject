@@ -18,16 +18,25 @@ const importExportService = require('../services/importExportService');
  *         name: altKategoriId
  *         schema: { type: integer }
  *       - in: query
+ *         name: segmentId
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: lifestyleGrupId
+ *         schema: { type: integer }
+ *       - in: query
  *         name: sezonId
  *         schema: { type: integer }
+ *       - in: query
+ *         name: altSezonCode
+ *         schema: { type: string }
  *     responses:
  *       200:
  *         description: Başarılı
  */
 router.get('/parameters', async (req, res) => {
   try {
-    const { markaId, altKategoriId, sezonId } = req.query;
-    const rows = await parameterService.listParameters({ markaId, altKategoriId, sezonId });
+    const { markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode } = req.query;
+    const rows = await parameterService.listParameters({ markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode });
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
