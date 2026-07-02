@@ -20,6 +20,16 @@ async function listLifestyleGrup() {
   return rows;
 }
 
+async function listSezon() {
+  const { rows } = await pool.query('SELECT sezon_id, ad FROM ref_sezon ORDER BY ad');
+  return rows;
+}
+
+async function listAltSezon() {
+  const { rows } = await pool.query('SELECT alt_sezon_code, ad FROM ref_alt_sezon ORDER BY ad');
+  return rows;
+}
+
 async function upsertAltKategori(altKategoriId, ad) {
   await pool.query(
     `INSERT INTO ref_alt_kategori (alt_kategori_id, ad) VALUES ($1, $2)
@@ -32,7 +42,9 @@ const REF_TABLE_CONFIG = {
   marka: { table: 'ref_marka', idColumn: 'marka_id' },
   altKategori: { table: 'ref_alt_kategori', idColumn: 'alt_kategori_id' },
   segment: { table: 'ref_segment', idColumn: 'segment_id' },
-  lifestyleGrup: { table: 'ref_lifestyle_grup', idColumn: 'lifestyle_grup_id' }
+  lifestyleGrup: { table: 'ref_lifestyle_grup', idColumn: 'lifestyle_grup_id' },
+  sezon: { table: 'ref_sezon', idColumn: 'sezon_id' },
+  altSezon: { table: 'ref_alt_sezon', idColumn: 'alt_sezon_code' }
 };
 
 async function upsertRefItems(type, items) {
@@ -95,6 +107,8 @@ module.exports = {
   listAltKategori,
   listSegment,
   listLifestyleGrup,
+  listSezon,
+  listAltSezon,
   upsertAltKategori,
   syncRefTablesFromPlm,
   getSetting,

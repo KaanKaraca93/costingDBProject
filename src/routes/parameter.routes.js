@@ -17,14 +17,17 @@ const importExportService = require('../services/importExportService');
  *       - in: query
  *         name: altKategoriId
  *         schema: { type: integer }
+ *       - in: query
+ *         name: sezonId
+ *         schema: { type: integer }
  *     responses:
  *       200:
  *         description: Başarılı
  */
 router.get('/parameters', async (req, res) => {
   try {
-    const { markaId, altKategoriId } = req.query;
-    const rows = await parameterService.listParameters({ markaId, altKategoriId });
+    const { markaId, altKategoriId, sezonId } = req.query;
+    const rows = await parameterService.listParameters({ markaId, altKategoriId, sezonId });
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -37,11 +40,12 @@ router.get('/parameters', async (req, res) => {
  *   get:
  *     summary: PLM widget entegrasyonu — kırılıma göre MU/Sarf/KDV çözümleme
  *     description: >
- *       Verilen 4'lü kırılım (marka, altKategori, segment, lifestyleGrup) için decision_parameters
- *       tablosunda eşleşme arar. Eşleşme bulunursa oradaki MU/Sarf değerlerini, bulunamazsa
- *       PARAMETER_DB_SPEC.md Bölüm 6'daki fallback kurallarını (lifestyleGrup=2 ise MU=3.15,
- *       aksi halde MU=4.94, Sarf=1.5) uygular. Bu endpoint PLM token gerektirmez, doğrudan
- *       herkese açık bir REST çağrısıdır.
+ *       Verilen 6'lı kırılım (marka, altKategori, segment, lifestyleGrup, sezon, altSezon)
+ *       için decision_parameters tablosunda eşleşme arar. Eşleşme bulunursa oradaki MU/Sarf
+ *       değerlerini, bulunamazsa PARAMETER_DB_SPEC.md Bölüm 6'daki fallback kurallarını
+ *       (lifestyleGrup=2 ise MU=3.15, aksi halde MU=4.94, Sarf=1.5 — fallback sezon/altSezon'a
+ *       göre değişmez) uygular. Bu endpoint PLM token gerektirmez, doğrudan herkese açık bir
+ *       REST çağrısıdır.
  *     tags: [Parametreler]
  *     parameters:
  *       - in: query
@@ -64,6 +68,16 @@ router.get('/parameters', async (req, res) => {
  *         required: true
  *         schema: { type: integer }
  *         example: 8
+ *       - in: query
+ *         name: sezon
+ *         required: true
+ *         schema: { type: integer }
+ *         example: 12
+ *       - in: query
+ *         name: altSezon
+ *         required: true
+ *         schema: { type: string }
+ *         example: FW1
  *     responses:
  *       200:
  *         description: Başarılı
@@ -83,12 +97,16 @@ router.get('/parameters/resolve', async (req, res) => {
     const altKategoriId = Number(req.query.altKategori);
     const segmentId = Number(req.query.segment);
     const lifestyleGrupId = Number(req.query.lifestyleGrup);
+    const sezonId = req.query.sezon !== undefined ? Number(req.query.sezon) : null;
+    const altSezonCode = req.query.altSezon !== undefined ? String(req.query.altSezon) : null;
 
     const match = await parameterService.findByKey({
       markaId,
       altKategoriId,
       segmentId,
-      lifestyleGrupId
+      lifestyleGrupId,
+      sezonId,
+      altSezonCode
     });
 
     const kdvOrani = Number((await refService.getSetting('kdv_orani')) || '0.10');
@@ -121,8 +139,8 @@ router.get('/parameters/resolve', async (req, res) => {
  * @swagger
  * /api/parameters/template:
  *   get:
- *     summary: Marka/Alt Kategori/Segment/LifeStyle Grubu isimleriyle dolu, dropdown veri
- *       doğrulamalı Excel şablonu üretir (mevcut kayıtlar dahil).
+ *     summary: Marka/Alt Kategori/Segment/LifeStyle Grubu/Sezon/Alt Sezon isimleriyle dolu,
+ *       dropdown veri doğrulamalı Excel şablonu üretir (mevcut kayıtlar dahil).
  *     description: >
  *       `format=base64` verilirse (PLM widget içinden çağrı için) JSON içinde
  *       `{ filename, contentBase64 }` döner; aksi halde tarayıcıdan doğrudan indirilebilecek
@@ -160,9 +178,9 @@ router.get('/parameters/template', async (req, res) => {
  *   post:
  *     summary: Yüklenen Excel dosyasını DB'ye yazmadan doğrular (kırılım eşleşme kontrolü)
  *     description: >
- *       Her satır için Marka/Alt Kategori/Segment/LifeStyle Grubu isimleri referans
- *       tablolarıyla eşleştirilir; eşleşmeyen, eksik, sayısal olmayan veya şablon içinde
- *       tekrar eden satırlar hata olarak işaretlenir. DB'de hiçbir değişiklik yapılmaz.
+ *       Her satır için Marka/Alt Kategori/Segment/LifeStyle Grubu/Sezon/Alt Sezon isimleri
+ *       referans tablolarıyla eşleştirilir; eşleşmeyen, eksik, sayısal olmayan veya şablon
+ *       içinde tekrar eden satırlar hata olarak işaretlenir. DB'de hiçbir değişiklik yapılmaz.
  *     tags: [Parametreler]
  *     requestBody:
  *       required: true
@@ -272,9 +290,9 @@ router.get('/parameters/:id', async (req, res) => {
 });
 
 function validateBody(body) {
-  const { markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf } = body;
-  if ([markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf].some((v) => v === undefined || v === null || v === '')) {
-    return 'markaId, altKategoriId, segmentId, lifestyleGrupId, mu ve sarf zorunludur.';
+  const { markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode, mu, sarf } = body;
+  if ([markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode, mu, sarf].some((v) => v === undefined || v === null || v === '')) {
+    return 'markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode, mu ve sarf zorunludur.';
   }
   if (Number.isNaN(Number(mu)) || Number.isNaN(Number(sarf))) {
     return 'mu ve sarf sayısal olmalıdır.';
@@ -305,7 +323,7 @@ router.post('/parameters', async (req, res) => {
 
     const existing = await parameterService.findByKey(req.body);
     if (existing) {
-      return res.status(409).json({ error: 'Bu marka/alt kategori/segment/lifestyle grup kombinasyonu zaten mevcut.', existingId: existing.id });
+      return res.status(409).json({ error: 'Bu marka/alt kategori/segment/lifestyle grup/sezon/alt sezon kombinasyonu zaten mevcut.', existingId: existing.id });
     }
 
     const created = await parameterService.createParameter(req.body, req.body.updatedBy);

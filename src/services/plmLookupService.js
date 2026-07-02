@@ -10,7 +10,8 @@ const GLREF_IDS = {
   marka: 1,
   altKategori: 69,
   lifestyleGrup: 227,
-  segment: 232
+  segment: 232,
+  sezon: 58
 };
 
 function resolveDisplayName(item) {
@@ -46,14 +47,15 @@ async function fetchLookup(glrefId) {
 }
 
 async function fetchAllLookups() {
-  const [marka, altKategori, lifestyleGrup, segment] = await Promise.all([
+  const [marka, altKategori, lifestyleGrup, segment, sezon] = await Promise.all([
     fetchLookup(GLREF_IDS.marka),
     fetchLookup(GLREF_IDS.altKategori),
     fetchLookup(GLREF_IDS.lifestyleGrup),
-    fetchLookup(GLREF_IDS.segment)
+    fetchLookup(GLREF_IDS.segment),
+    fetchLookup(GLREF_IDS.sezon)
   ]);
 
-  return { marka, altKategori, lifestyleGrup, segment };
+  return { marka, altKategori, lifestyleGrup, segment, sezon };
 }
 
 module.exports = { GLREF_IDS, fetchLookup, fetchAllLookups };

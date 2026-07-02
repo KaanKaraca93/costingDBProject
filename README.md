@@ -30,17 +30,24 @@ Uygulama varsayılan olarak `http://localhost:3000` üzerinde çalışır.
 
 | Tablo | Açıklama |
 |---|---|
-| `decision_parameters` | Marka + Alt Kategori + Segment + LifeStyle Grubu kırılımına göre MU/Sarf değerleri (unique constraint ile korunur) |
+| `decision_parameters` | Marka + Alt Kategori + Segment + LifeStyle Grubu + Sezon + Alt Sezon kırılımına göre MU/Sarf değerleri (unique constraint ile korunur) |
 | `app_settings` | Kırılıma göre değişmeyen global ayarlar (örn. `kdv_orani`, fallback değerleri) |
-| `ref_marka`, `ref_alt_kategori`, `ref_segment`, `ref_lifestyle_grup` | Dropdown'lar için isim/ID eşleştirme tabloları — **kullanıcı arayüzde her zaman ismi görür, ID'yi görmez**; ID sadece DB/entegrasyon tarafında tutulur. |
+| `ref_marka`, `ref_alt_kategori`, `ref_segment`, `ref_lifestyle_grup`, `ref_sezon`, `ref_alt_sezon` | Dropdown'lar için isim/ID eşleştirme tabloları — **kullanıcı arayüzde her zaman ismi görür, ID'yi görmez**; ID sadece DB/entegrasyon tarafında tutulur. `ref_alt_sezon`'un anahtarı (`alt_sezon_code`) diğerlerinden farklı olarak **metin** kodudur (örn. "FW1"), çünkü kaynağı bir GenericLookUpAll lookup'ı değil, PLM Theme_Attributes entity'sinin sabit valueset'idir. |
+
+> **Not (geriye dönük uyumluluk):** `sezon_id` ve `alt_sezon_code` kolonları DB seviyesinde
+> `NULL` olabilir; bu iki boyut sonradan eklendiği için PLM üzerinden senkronize edilmeden
+> önce oluşturulmuş eski kayıtlarda bu alanlar boştur. Yeni kayıt/güncellemelerde API
+> katmanı bu iki alanı da **zorunlu** tutar — eski bir satırı düzenlemek isteyen kullanıcı
+> önce Sezon/Alt Sezon seçmek zorunda kalır. Excel şablonunda da aynı şekilde eski satırlar
+> bu iki kolon boş olarak iner ve doldurulmadan tekrar yüklenirse hata olarak işaretlenir.
 
 ## API Uçları
 
 ### Parametreler
 ```
-GET    /api/parameters                      Liste (opsiyonel ?markaId=&altKategoriId= filtresi)
+GET    /api/parameters                      Liste (opsiyonel ?markaId=&altKategoriId=&sezonId= filtresi)
 GET    /api/parameters/:id                  Tek kayıt
-GET    /api/parameters/resolve?marka=&altKategori=&segment=&lifestyleGrup=
+GET    /api/parameters/resolve?marka=&altKategori=&segment=&lifestyleGrup=&sezon=&altSezon=
                                              PLM entegrasyonu için MU/Sarf çözümleme (eşleşme yoksa fallback döner)
 POST   /api/parameters                      Yeni kayıt
 PUT    /api/parameters/:id                  Güncelle
@@ -53,8 +60,10 @@ GET  /api/ref/marka
 GET  /api/ref/alt-kategori
 GET  /api/ref/segment
 GET  /api/ref/lifestyle-grup
+GET  /api/ref/sezon
+GET  /api/ref/alt-sezon
 POST /api/ref/alt-kategori                  { altKategoriId, ad } upsert
-POST /api/ref/sync-from-plm                 Marka/Alt Kategori/Segment/LifeStyle listelerini PLM'den çeker
+POST /api/ref/sync-from-plm                 Marka/Alt Kategori/Segment/LifeStyle/Sezon/Alt Sezon listelerini PLM'den çeker
 GET  /api/settings
 PUT  /api/settings/:key                     { value }
 ```
@@ -67,7 +76,7 @@ POST /api/parameters/import/validate        { fileBase64 } — DB'ye yazmadan sa
 POST /api/parameters/import/commit          { rows: [...], updatedBy } — /import/validate'den dönen "ok" satırları upsert eder
 ```
 
-Şablonda Marka/Alt Kategori/Segment/LifeStyle Grubu kolonları **isim** olarak gelir (ID değil)
+Şablonda Marka/Alt Kategori/Segment/LifeStyle Grubu/Sezon/Alt Sezon kolonları **isim** olarak gelir (ID değil)
 ve her hücrede Excel veri doğrulaması (açılır liste) bulunur; kullanıcı listede olmayan bir
 değer yazarsa Excel anında uyarır. Yükleme sırasında da sunucu tarafında aynı kontrol tekrar
 yapılır: eşleşmeyen/eksik/tekrar eden satırlar `import/validate` cevabında hata olarak işaretlenir
@@ -85,14 +94,17 @@ widget'ın asıl ihtiyaç duyduğu tek uç `GET /api/parameters/resolve`.
 ## PLM'den İsim Listelerini Senkronize Etme (ref_* tabloları)
 
 `decision_parameters` tablosunda ID'ler (marka_id, alt_kategori_id, segment_id,
-lifestyle_grup_id) tutulur; kullanıcı arayüzde bu ID'leri görmez, her zaman
-`ref_*` tablolarındaki **isimleri** görür. Bu isimleri PLM'den canlı çekmek için:
+lifestyle_grup_id, sezon_id, alt_sezon_code) tutulur; kullanıcı arayüzde bu ID'leri
+görmez, her zaman `ref_*` tablolarındaki **isimleri** görür. Bu isimleri PLM'den canlı
+çekmek için:
 
 ```
 POST /api/ref/sync-from-plm
 ```
 
-Bu endpoint PLM'nin `GenericLookUpAll` (odata2) servisinden şu filtrelerle veri çeker:
+Bu endpoint iki farklı PLM kaynağından veri çeker:
+
+**1) `GenericLookUpAll` (odata2) — Marka/Alt Kategori/Segment/LifeStyle Grubu/Sezon**
 
 | Alan | GlrefId | PLM LookUpType |
 |---|---|---|
@@ -100,10 +112,27 @@ Bu endpoint PLM'nin `GenericLookUpAll` (odata2) servisinden şu filtrelerle veri
 | Alt Kategori | 69 | Product Subsubcategory |
 | Segment | 232 | (segment lookup) |
 | LifeStyle Grubu | 227 | (lifestyle grubu lookup) |
+| Sezon | 58 | Season |
 
 Her kayıtta gerçek DB anahtarı **`GlValId`**'dir (Code veya Id değil). Gösterim ismi
 için önce `Translations` içinde `Culture = "tr-tr"` olan çeviri aranır, bulunamazsa
 kök `Name` alanı kullanılır. Bu mantık `src/services/plmLookupService.js` içinde.
+
+**2) IDM `datamodel/entities` — Alt Sezon**
+
+Alt Sezon bir `GenericLookUpAll` lookup'ı değildir; PLM'nin `Theme_Attributes` entity
+tanımındaki `Alt_Sezon` alanının sabit bir valueset'idir:
+
+```
+GET https://mingle-ionapi.eu1.inforcloudsuite.com/{tenant}/IDM/api/datamodel/entities/Theme_Attributes
+```
+
+Yanıttaki `entity.attrs.attr[].valueset.value[]` dizisinden `name`/`desc` çiftleri okunur;
+**`name` DB'ye yazılan gerçek anahtar**, **`desc` ise kullanıcıya gösterilen isimdir**
+(Alt Sezon özelinde ikisi PLM tarafının standardı gereği çoğunlukla aynıdır, örn.
+"FW1"/"FW1"). Bu mantık `src/services/plmThemeAttributeService.js` içinde ve ileride
+başka bir Tema özelliği (örn. Cluster, Urun_Sinifi) gerekirse aynı fonksiyon farklı
+`attributeName` ile tekrar kullanılabilir.
 
 Arayüzde "🔄 PLM'den İsim Listelerini Senkronize Et" butonuyla da tetiklenebilir.
 PLM'de yeni bir kategori eklendiğinde veya isim değiştiğinde tekrar çalıştırmak yeterli;
@@ -175,5 +204,5 @@ plan belirtmeden çalıştırırsanız Heroku size güncel seçenekleri listeler
 ## Yol Haritası
 
 - [ ] Gerçek 406 satırlık `DECISION_TABLE` verisinin migrate edilmesi (kaynak: PLM `widget.ts`)
-- [x] `ref_marka` / `ref_alt_kategori` / `ref_segment` / `ref_lifestyle_grup` listelerinin PLM'den senkronizasyonu (`POST /api/ref/sync-from-plm`)
+- [x] `ref_marka` / `ref_alt_kategori` / `ref_segment` / `ref_lifestyle_grup` / `ref_sezon` / `ref_alt_sezon` listelerinin PLM'den senkronizasyonu (`POST /api/ref/sync-from-plm`)
 - [ ] PLM widget'ının `/api/parameters/resolve` endpoint'ine bağlanması (Swagger dokümantasyonu PLM'e tanıtılacak)

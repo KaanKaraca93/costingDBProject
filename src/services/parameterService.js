@@ -11,6 +11,10 @@ const BASE_SELECT = `
     rs.ad            AS segment_ad,
     dp.lifestyle_grup_id,
     rlg.ad           AS lifestyle_grup_ad,
+    dp.sezon_id,
+    rsz.ad           AS sezon_ad,
+    dp.alt_sezon_code,
+    rasz.ad          AS alt_sezon_ad,
     dp.mu,
     dp.sarf,
     dp.created_at,
@@ -21,9 +25,11 @@ const BASE_SELECT = `
   LEFT JOIN ref_alt_kategori rak    ON rak.alt_kategori_id = dp.alt_kategori_id
   LEFT JOIN ref_segment rs          ON rs.segment_id = dp.segment_id
   LEFT JOIN ref_lifestyle_grup rlg  ON rlg.lifestyle_grup_id = dp.lifestyle_grup_id
+  LEFT JOIN ref_sezon rsz           ON rsz.sezon_id = dp.sezon_id
+  LEFT JOIN ref_alt_sezon rasz      ON rasz.alt_sezon_code = dp.alt_sezon_code
 `;
 
-async function listParameters({ markaId, altKategoriId } = {}) {
+async function listParameters({ markaId, altKategoriId, sezonId } = {}) {
   const conditions = [];
   const values = [];
 
@@ -35,10 +41,14 @@ async function listParameters({ markaId, altKategoriId } = {}) {
     values.push(altKategoriId);
     conditions.push(`dp.alt_kategori_id = $${values.length}`);
   }
+  if (sezonId) {
+    values.push(sezonId);
+    conditions.push(`dp.sezon_id = $${values.length}`);
+  }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const { rows } = await pool.query(
-    `${BASE_SELECT} ${where} ORDER BY dp.marka_id, dp.alt_kategori_id, dp.segment_id, dp.lifestyle_grup_id`,
+    `${BASE_SELECT} ${where} ORDER BY dp.marka_id, dp.alt_kategori_id, dp.segment_id, dp.lifestyle_grup_id, dp.sezon_id, dp.alt_sezon_code`,
     values
   );
   return rows;
@@ -49,34 +59,41 @@ async function getParameterById(id) {
   return rows[0] || null;
 }
 
-async function findByKey({ markaId, altKategoriId, segmentId, lifestyleGrupId }) {
+/**
+ * sezonId / altSezonCode henüz doldurulmamış eski kayıtlarda NULL olabileceğinden
+ * `=` yerine `IS NOT DISTINCT FROM` kullanılır (NULL = NULL karşılaştırmasını da
+ * doğru şekilde eşleştirir).
+ */
+async function findByKey({ markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode }) {
   const { rows } = await pool.query(
-    `${BASE_SELECT} WHERE dp.marka_id = $1 AND dp.alt_kategori_id = $2 AND dp.segment_id = $3 AND dp.lifestyle_grup_id = $4`,
-    [markaId, altKategoriId, segmentId, lifestyleGrupId]
+    `${BASE_SELECT} WHERE dp.marka_id = $1 AND dp.alt_kategori_id = $2 AND dp.segment_id = $3
+       AND dp.lifestyle_grup_id = $4 AND dp.sezon_id IS NOT DISTINCT FROM $5
+       AND dp.alt_sezon_code IS NOT DISTINCT FROM $6`,
+    [markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId ?? null, altSezonCode ?? null]
   );
   return rows[0] || null;
 }
 
 async function createParameter(data, updatedBy) {
-  const { markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf } = data;
+  const { markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode, mu, sarf } = data;
   const { rows } = await pool.query(
     `INSERT INTO decision_parameters
-       (marka_id, alt_kategori_id, segment_id, lifestyle_grup_id, mu, sarf, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (marka_id, alt_kategori_id, segment_id, lifestyle_grup_id, sezon_id, alt_sezon_code, mu, sarf, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING id`,
-    [markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf, updatedBy || null]
+    [markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId ?? null, altSezonCode ?? null, mu, sarf, updatedBy || null]
   );
   return getParameterById(rows[0].id);
 }
 
 async function updateParameter(id, data, updatedBy) {
-  const { markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf } = data;
+  const { markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode, mu, sarf } = data;
   const { rowCount } = await pool.query(
     `UPDATE decision_parameters
      SET marka_id = $1, alt_kategori_id = $2, segment_id = $3, lifestyle_grup_id = $4,
-         mu = $5, sarf = $6, updated_by = $7, updated_at = now()
-     WHERE id = $8`,
-    [markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf, updatedBy || null, id]
+         sezon_id = $5, alt_sezon_code = $6, mu = $7, sarf = $8, updated_by = $9, updated_at = now()
+     WHERE id = $10`,
+    [markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId ?? null, altSezonCode ?? null, mu, sarf, updatedBy || null, id]
   );
   if (rowCount === 0) return null;
   return getParameterById(id);
@@ -88,20 +105,25 @@ async function deleteParameter(id) {
 }
 
 /**
- * Marka/AltKategori/Segment/LifeStyleGrup k\u0131r\u0131l\u0131m\u0131 zaten varsa g\u00fcnceller, yoksa olu\u015fturur.
- * Excel toplu i\u00e7e aktarma ak\u0131\u015f\u0131 i\u00e7in kullan\u0131l\u0131r. Postgres'in sistem kolonu `xmax`in
- * INSERT sonras\u0131 0 olmas\u0131ndan faydalan\u0131p sat\u0131r\u0131n yeni mi g\u00fcncellenmi\u015f mi oldu\u011funu d\u00f6ner.
+ * Marka/AltKategori/Segment/LifeStyleGrup/Sezon/AltSezon kırılımı zaten varsa günceller,
+ * yoksa oluşturur. Excel toplu içe aktarma akışı için kullanılır. Postgres'in sistem
+ * kolonu `xmax`in INSERT sonrası 0 olmasından faydalanıp satırın yeni mi güncellenmiş mi
+ * olduğunu döner.
+ *
+ * Not: sezonId/altSezonCode NULL gönderilirse ON CONFLICT eşleşmesi (Postgres'te NULL
+ * hiçbir zaman "eşit" sayılmadığından) tetiklenmez ve satır her zaman yeni eklenir; bu,
+ * sezon/alt sezon bilgisi olmayan eski kayıtlar için beklenen davranıştır.
  */
 async function upsertParameter(data, updatedBy) {
-  const { markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf } = data;
+  const { markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId, altSezonCode, mu, sarf } = data;
   const { rows } = await pool.query(
     `INSERT INTO decision_parameters
-       (marka_id, alt_kategori_id, segment_id, lifestyle_grup_id, mu, sarf, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (marka_id, alt_kategori_id, segment_id, lifestyle_grup_id)
+       (marka_id, alt_kategori_id, segment_id, lifestyle_grup_id, sezon_id, alt_sezon_code, mu, sarf, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (marka_id, alt_kategori_id, segment_id, lifestyle_grup_id, sezon_id, alt_sezon_code)
      DO UPDATE SET mu = EXCLUDED.mu, sarf = EXCLUDED.sarf, updated_by = EXCLUDED.updated_by, updated_at = now()
      RETURNING id, (xmax = 0) AS inserted`,
-    [markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf, updatedBy || null]
+    [markaId, altKategoriId, segmentId, lifestyleGrupId, sezonId ?? null, altSezonCode ?? null, mu, sarf, updatedBy || null]
   );
   return { id: rows[0].id, inserted: rows[0].inserted, row: await getParameterById(rows[0].id) };
 }

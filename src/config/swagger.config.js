@@ -10,13 +10,14 @@ const options = {
 ### Maliyet Parametreleri (MU / Sarf) Yönetim API'si
 
 PLM "Target Cost Calculator" widget'ının kullandığı Marka / Alt Kategori / Segment /
-LifeStyle Grubu kırılımına göre MU ve Sarf parametrelerini yönetir.
+LifeStyle Grubu / Sezon / Alt Sezon kırılımına göre MU ve Sarf parametrelerini yönetir.
 
 **Widget entegrasyonu için önemli endpoint:** \`GET /api/parameters/resolve\` — bu uç
 token gerektirmez, doğrudan PLM widget'ından çağrılabilir.
 
 **Referans veri senkronizasyonu:** \`POST /api/ref/sync-from-plm\` — Marka/Alt Kategori/
-Segment/LifeStyle Grubu isim listelerini PLM GenericLookUpAll servisinden çeker.
+Segment/LifeStyle Grubu/Sezon isim listelerini PLM GenericLookUpAll servisinden, Alt Sezon'u
+ise PLM Theme_Attributes entity'sinin sabit valueset'inden çeker.
       `,
       contact: {
         name: 'Ipekyol PLM Team'
@@ -42,12 +43,14 @@ Segment/LifeStyle Grubu isim listelerini PLM GenericLookUpAll servisinden çeker
       schemas: {
         ParameterInput: {
           type: 'object',
-          required: ['markaId', 'altKategoriId', 'segmentId', 'lifestyleGrupId', 'mu', 'sarf'],
+          required: ['markaId', 'altKategoriId', 'segmentId', 'lifestyleGrupId', 'sezonId', 'altSezonCode', 'mu', 'sarf'],
           properties: {
             markaId: { type: 'integer', example: 4 },
             altKategoriId: { type: 'integer', example: 100 },
             segmentId: { type: 'integer', example: 3 },
             lifestyleGrupId: { type: 'integer', example: 8 },
+            sezonId: { type: 'integer', example: 12 },
+            altSezonCode: { type: 'string', example: 'FW1' },
             mu: { type: 'number', example: 4.94 },
             sarf: { type: 'number', example: 1.5 }
           }

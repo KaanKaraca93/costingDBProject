@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const refService = require('../services/refService');
 const plmLookupService = require('../services/plmLookupService');
+const plmThemeAttributeService = require('../services/plmThemeAttributeService');
 
 /**
  * @swagger
@@ -75,6 +76,45 @@ router.get('/ref/lifestyle-grup', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/ref/sezon:
+ *   get:
+ *     summary: Sezon listesi (PLM GLrefId 58)
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/sezon', async (req, res) => {
+  try {
+    res.json(await refService.listSezon());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/ref/alt-sezon:
+ *   get:
+ *     summary: Alt Sezon listesi (PLM Theme_Attributes entity'sinin Alt_Sezon valueset'i)
+ *     description: >
+ *       Bu liste bir GenericLookUpAll lookup'ı değildir; PLM'nin Theme_Attributes entity
+ *       tanımındaki sabit bir değer kümesidir. Anahtar (kod) metindir (örn. "FW1", "SS2").
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/alt-sezon', async (req, res) => {
+  try {
+    res.json(await refService.listAltSezon());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/ref/alt-kategori', async (req, res) => {
   try {
     const { altKategoriId, ad } = req.body;
@@ -92,13 +132,14 @@ router.post('/ref/alt-kategori', async (req, res) => {
  * @swagger
  * /api/ref/sync-from-plm:
  *   post:
- *     summary: Marka/Alt Kategori/Segment/LifeStyle Grubu listelerini PLM'den senkronize eder
+ *     summary: Marka/Alt Kategori/Segment/LifeStyle Grubu/Sezon/Alt Sezon listelerini PLM'den senkronize eder
  *     description: >
- *       PLM'deki GenericLookUpAll (odata2) servisinden GlrefId=1 (Marka), 69 (Alt Kategori),
- *       232 (Segment), 227 (LifeStyle Grubu) filtreleriyle veri çeker. Her kaydın GlValId
- *       alanı DB'deki ID olarak, varsa tr-tr çevirisi yoksa kök Name alanı gösterim ismi
- *       olarak yerel ref_* tablolarına upsert edilir. PLM'de artık dönmeyen eski kayıtlar
- *       silinmez.
+ *       Marka(1)/Alt Kategori(69)/Segment(232)/LifeStyle Grubu(227)/Sezon(58) PLM'deki
+ *       GenericLookUpAll (odata2) servisinden GlrefId filtreleriyle çekilir (GlValId DB
+ *       anahtarı, varsa tr-tr çevirisi yoksa kök Name gösterim ismidir). Alt Sezon ise bir
+ *       lookup değil, PLM'nin Theme_Attributes entity tanımındaki Alt_Sezon alanının sabit
+ *       valueset'inden (IDM datamodel API) çekilir; anahtar metindir (örn. "FW1"). PLM'de
+ *       artık dönmeyen eski kayıtlar silinmez.
  *     tags: [Referans Veriler]
  *     responses:
  *       200:
@@ -108,8 +149,11 @@ router.post('/ref/alt-kategori', async (req, res) => {
  */
 router.post('/ref/sync-from-plm', async (req, res) => {
   try {
-    const lookups = await plmLookupService.fetchAllLookups();
-    const result = await refService.syncRefTablesFromPlm(lookups);
+    const [lookups, altSezon] = await Promise.all([
+      plmLookupService.fetchAllLookups(),
+      plmThemeAttributeService.fetchAltSezonValueset()
+    ]);
+    const result = await refService.syncRefTablesFromPlm({ ...lookups, altSezon });
     res.json({ success: true, synced: result });
   } catch (err) {
     res.status(500).json({ error: err.message });

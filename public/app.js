@@ -3,6 +3,8 @@ const state = {
   altKategori: [],
   segment: [],
   lifestyleGrup: [],
+  sezon: [],
+  altSezon: [],
   parameters: [],
   importPreview: null
 };
@@ -50,24 +52,31 @@ function fillSelect(select, items, valueKey, labelKey, includeEmpty) {
 }
 
 async function loadRefData() {
-  const [marka, altKategori, segment, lifestyleGrup] = await Promise.all([
+  const [marka, altKategori, segment, lifestyleGrup, sezon, altSezon] = await Promise.all([
     api('/api/ref/marka'),
     api('/api/ref/alt-kategori'),
     api('/api/ref/segment'),
-    api('/api/ref/lifestyle-grup')
+    api('/api/ref/lifestyle-grup'),
+    api('/api/ref/sezon'),
+    api('/api/ref/alt-sezon')
   ]);
   state.marka = marka;
   state.altKategori = altKategori;
   state.segment = segment;
   state.lifestyleGrup = lifestyleGrup;
+  state.sezon = sezon;
+  state.altSezon = altSezon;
 
   fillSelect(document.getElementById('marka'), marka, 'marka_id', 'ad', false);
   fillSelect(document.getElementById('altKategori'), altKategori, 'alt_kategori_id', 'ad', false);
   fillSelect(document.getElementById('segment'), segment, 'segment_id', 'ad', false);
   fillSelect(document.getElementById('lifestyleGrup'), lifestyleGrup, 'lifestyle_grup_id', 'ad', false);
+  fillSelect(document.getElementById('sezon'), sezon, 'sezon_id', 'ad', false);
+  fillSelect(document.getElementById('altSezon'), altSezon, 'alt_sezon_code', 'ad', false);
 
   fillSelect(document.getElementById('filter-marka'), marka, 'marka_id', 'ad', true);
   fillSelect(document.getElementById('filter-alt-kategori'), altKategori, 'alt_kategori_id', 'ad', true);
+  fillSelect(document.getElementById('filter-sezon'), sezon, 'sezon_id', 'ad', true);
 }
 
 async function loadSettings() {
@@ -122,6 +131,8 @@ function renderParameters() {
       <td>${p.alt_kategori_ad || p.alt_kategori_id}</td>
       <td>${p.segment_ad || p.segment_id}</td>
       <td>${p.lifestyle_grup_ad || p.lifestyle_grup_id}</td>
+      <td>${p.sezon_ad || p.sezon_id || '—'}</td>
+      <td>${p.alt_sezon_ad || p.alt_sezon_code || '—'}</td>
       <td>${Number(p.mu).toFixed(2)}</td>
       <td>${Number(p.sarf).toFixed(3)}</td>
       <td>${new Date(p.updated_at).toLocaleString('tr-TR')}</td>
@@ -144,9 +155,11 @@ function renderParameters() {
 async function loadParameters() {
   const markaId = document.getElementById('filter-marka').value;
   const altKategoriId = document.getElementById('filter-alt-kategori').value;
+  const sezonId = document.getElementById('filter-sezon').value;
   const qs = new URLSearchParams();
   if (markaId) qs.set('markaId', markaId);
   if (altKategoriId) qs.set('altKategoriId', altKategoriId);
+  if (sezonId) qs.set('sezonId', sezonId);
 
   state.parameters = await api(`/api/parameters${qs.toString() ? '?' + qs.toString() : ''}`);
   renderParameters();
@@ -161,6 +174,8 @@ function startEdit(id) {
   document.getElementById('altKategori').value = p.alt_kategori_id;
   document.getElementById('segment').value = p.segment_id;
   document.getElementById('lifestyleGrup').value = p.lifestyle_grup_id;
+  document.getElementById('sezon').value = p.sezon_id || '';
+  document.getElementById('altSezon').value = p.alt_sezon_code || '';
   document.getElementById('mu').value = p.mu;
   document.getElementById('sarf').value = p.sarf;
 
@@ -198,6 +213,8 @@ document.getElementById('parameter-form').addEventListener('submit', async (e) =
     altKategoriId: Number(document.getElementById('altKategori').value),
     segmentId: Number(document.getElementById('segment').value),
     lifestyleGrupId: Number(document.getElementById('lifestyleGrup').value),
+    sezonId: Number(document.getElementById('sezon').value),
+    altSezonCode: document.getElementById('altSezon').value,
     mu: Number(document.getElementById('mu').value),
     sarf: Number(document.getElementById('sarf').value)
   };
@@ -220,6 +237,7 @@ document.getElementById('parameter-form').addEventListener('submit', async (e) =
 document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
 document.getElementById('filter-marka').addEventListener('change', loadParameters);
 document.getElementById('filter-alt-kategori').addEventListener('change', loadParameters);
+document.getElementById('filter-sezon').addEventListener('change', loadParameters);
 
 document.getElementById('sync-plm-btn').addEventListener('click', async () => {
   const btn = document.getElementById('sync-plm-btn');
@@ -228,7 +246,7 @@ document.getElementById('sync-plm-btn').addEventListener('click', async () => {
   try {
     const result = await api('/api/ref/sync-from-plm', { method: 'POST' });
     const s = result.synced;
-    toast(`PLM senkronizasyonu tamam: Marka ${s.marka}, Alt Kategori ${s.altKategori}, Segment ${s.segment}, LifeStyle ${s.lifestyleGrup}`);
+    toast(`PLM senkronizasyonu tamam: Marka ${s.marka}, Alt Kategori ${s.altKategori}, Segment ${s.segment}, LifeStyle ${s.lifestyleGrup}, Sezon ${s.sezon}, Alt Sezon ${s.altSezon}`);
     await loadRefData();
     await loadParameters();
   } catch (err) {
@@ -261,7 +279,7 @@ function renderImportModal() {
 
   const tbody = document.getElementById('import-modal-table-body');
   if (!preview.rows.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Satır bulunamadı.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Satır bulunamadı.</td></tr>';
   } else {
     tbody.innerHTML = preview.rows.map((r) => {
       const rowClass = r.status === 'ok' ? `import-row-ok-${r.action}` : 'import-row-error';
@@ -273,6 +291,8 @@ function renderImportModal() {
           <td>${escapeHtml(r.altKategori)}</td>
           <td>${escapeHtml(r.segment)}</td>
           <td>${escapeHtml(r.lifestyleGrup)}</td>
+          <td>${escapeHtml(r.sezon)}</td>
+          <td>${escapeHtml(r.altSezon)}</td>
           <td>${escapeHtml(r.mu)}</td>
           <td>${escapeHtml(r.sarf)}</td>
           <td class="import-status">${statusLabel}</td>

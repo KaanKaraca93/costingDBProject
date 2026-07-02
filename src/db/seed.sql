@@ -21,6 +21,20 @@ INSERT INTO ref_segment (segment_id, ad) VALUES
     (5, 'Segment 5')
 ON CONFLICT (segment_id) DO NOTHING;
 
+-- Alt Sezon, PLM Theme_Attributes entity'sindeki sabit valueset (canlı doğrulanmıştır);
+-- Sezon (ref_sezon) ise PLM'de sık değiştiği için burada seed edilmiyor, sadece
+-- POST /api/ref/sync-from-plm ile senkronize ediliyor.
+INSERT INTO ref_alt_sezon (alt_sezon_code, ad) VALUES
+    ('Diğer', 'Diğer'),
+    ('FW1', 'FW1'),
+    ('FW2', 'FW2'),
+    ('FW4', 'FW4'),
+    ('SS1', 'SS1'),
+    ('SS2', 'SS2'),
+    ('SS3', 'SS3'),
+    ('SS4', 'SS4')
+ON CONFLICT (alt_sezon_code) DO NOTHING;
+
 -- Global ayar: KDV oranı (spec Bölüm 4)
 INSERT INTO app_settings (key, value) VALUES
     ('kdv_orani', '0.10')

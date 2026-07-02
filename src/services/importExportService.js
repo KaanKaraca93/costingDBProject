@@ -4,51 +4,55 @@ const parameterService = require('./parameterService');
 
 const SHEET_NAME = 'Parametreler';
 const LOOKUP_SHEET_NAME = 'Lookups';
-const MIN_VALIDATION_ROWS = 500; // yeni satır eklemeye yetecek kadar bo\u015f sat\u0131r
+const MIN_VALIDATION_ROWS = 500; // yeni satır eklemeye yetecek kadar boş satır
 const MU_MIN = 0;
 const MU_MAX = 20;
 const SARF_MIN = 0;
 const SARF_MAX = 20;
 
+/**
+ * Kırılımı oluşturan kolonlar. Yeni bir kırılım boyutu (örn. ileride başka bir Tema
+ * özelliği) eklenmesi gerekirse tek yapılması gereken buraya bir `kind: 'lookup'`
+ * satırı eklemek ve `refKey`'e karşılık gelen listeyi refs objesine dahil etmektir —
+ * şablon üretimi, veri doğrulaması ve içe aktarma mantığının tamamı buradan besleniyor.
+ */
 const COLUMN_DEFS = [
-  { key: 'marka', header: 'Marka', width: 24, lookupKey: 'marka', namedRange: 'ListMarka' },
-  { key: 'altKategori', header: 'Alt Kategori', width: 26, lookupKey: 'altKategori', namedRange: 'ListAltKategori' },
-  { key: 'segment', header: 'Segment', width: 16, lookupKey: 'segment', namedRange: 'ListSegment' },
-  { key: 'lifestyleGrup', header: 'LifeStyle Grubu', width: 22, lookupKey: 'lifestyleGrup', namedRange: 'ListLifestyleGrup' },
-  { key: 'mu', header: 'MU', width: 10 },
-  { key: 'sarf', header: 'Sarf', width: 10 }
+  { key: 'marka', header: 'Marka', width: 22, kind: 'lookup', refKey: 'marka', idKey: 'marka_id', displayField: 'marka_ad', resolvedKey: 'markaId', namedRange: 'ListMarka' },
+  { key: 'altKategori', header: 'Alt Kategori', width: 24, kind: 'lookup', refKey: 'altKategori', idKey: 'alt_kategori_id', displayField: 'alt_kategori_ad', resolvedKey: 'altKategoriId', namedRange: 'ListAltKategori' },
+  { key: 'segment', header: 'Segment', width: 16, kind: 'lookup', refKey: 'segment', idKey: 'segment_id', displayField: 'segment_ad', resolvedKey: 'segmentId', namedRange: 'ListSegment' },
+  { key: 'lifestyleGrup', header: 'LifeStyle Grubu', width: 22, kind: 'lookup', refKey: 'lifestyleGrup', idKey: 'lifestyle_grup_id', displayField: 'lifestyle_grup_ad', resolvedKey: 'lifestyleGrupId', namedRange: 'ListLifestyleGrup' },
+  { key: 'sezon', header: 'Sezon', width: 18, kind: 'lookup', refKey: 'sezon', idKey: 'sezon_id', displayField: 'sezon_ad', resolvedKey: 'sezonId', namedRange: 'ListSezon' },
+  { key: 'altSezon', header: 'Alt Sezon', width: 16, kind: 'lookup', refKey: 'altSezon', idKey: 'alt_sezon_code', displayField: 'alt_sezon_ad', resolvedKey: 'altSezonCode', namedRange: 'ListAltSezon' },
+  { key: 'mu', header: 'MU', width: 10, kind: 'number', resolvedKey: 'mu', min: MU_MIN, max: MU_MAX },
+  { key: 'sarf', header: 'Sarf', width: 10, kind: 'number', resolvedKey: 'sarf', min: SARF_MIN, max: SARF_MAX }
 ];
+
+const LOOKUP_COLUMNS = COLUMN_DEFS.filter((c) => c.kind === 'lookup');
 
 const norm = (v) => (v == null ? '' : String(v).trim().toLowerCase());
 
 /**
- * Sadece veri al\u0131p bir ExcelJS Workbook \u00fcreten saf fonksiyon (DB ba\u011f\u0131ms\u0131z, test edilebilir).
+ * Sadece veri alıp bir ExcelJS Workbook üreten saf fonksiyon (DB bağımsız, test edilebilir).
+ * `refs`: { marka, altKategori, segment, lifestyleGrup, sezon, altSezon } — her biri
+ * [{ <idKey>, ad }] biçiminde bir dizi.
  */
-function buildTemplateWorkbook({ marka, altKategori, segment, lifestyleGrup, rows }) {
+function buildTemplateWorkbook({ refs, rows }) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Ipekyol Costing DB';
   workbook.created = new Date();
 
-  const lookupLists = {
-    marka: marka.map((m) => m.ad),
-    altKategori: altKategori.map((m) => m.ad),
-    segment: segment.map((m) => m.ad),
-    lifestyleGrup: lifestyleGrup.map((m) => m.ad)
-  };
-
   const lookupSheet = workbook.addWorksheet(LOOKUP_SHEET_NAME);
   lookupSheet.state = 'veryHidden';
 
-  const lookupColKeys = ['marka', 'altKategori', 'segment', 'lifestyleGrup'];
-  lookupColKeys.forEach((key, colIdx) => {
+  LOOKUP_COLUMNS.forEach((col, colIdx) => {
     const colLetter = String.fromCharCode(65 + colIdx);
-    lookupSheet.getCell(`${colLetter}1`).value = key;
-    lookupLists[key].forEach((name, i) => {
+    const items = (refs[col.refKey] || []).map((item) => item.ad);
+    lookupSheet.getCell(`${colLetter}1`).value = col.refKey;
+    items.forEach((name, i) => {
       lookupSheet.getCell(`${colLetter}${i + 2}`).value = name;
     });
-    const lastRow = Math.max(lookupLists[key].length + 1, 2);
-    const def = COLUMN_DEFS.find((c) => c.lookupKey === key);
-    workbook.definedNames.add(`${LOOKUP_SHEET_NAME}!$${colLetter}$2:$${colLetter}$${lastRow}`, def.namedRange);
+    const lastRow = Math.max(items.length + 1, 2);
+    workbook.definedNames.add(`${LOOKUP_SHEET_NAME}!$${colLetter}$2:$${colLetter}$${lastRow}`, col.namedRange);
   });
 
   const sheet = workbook.addWorksheet(SHEET_NAME);
@@ -58,14 +62,15 @@ function buildTemplateWorkbook({ marka, altKategori, segment, lifestyleGrup, row
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
 
   rows.forEach((r) => {
-    sheet.addRow({
-      marka: r.marka_ad || '',
-      altKategori: r.alt_kategori_ad || '',
-      segment: r.segment_ad || '',
-      lifestyleGrup: r.lifestyle_grup_ad || '',
-      mu: r.mu != null ? Number(r.mu) : '',
-      sarf: r.sarf != null ? Number(r.sarf) : ''
+    const rowObj = {};
+    COLUMN_DEFS.forEach((col) => {
+      if (col.kind === 'lookup') {
+        rowObj[col.key] = r[col.displayField] || '';
+      } else {
+        rowObj[col.key] = r[col.key] != null ? Number(r[col.key]) : '';
+      }
     });
+    sheet.addRow(rowObj);
   });
 
   const lastValidationRow = Math.max(rows.length + 1, 1) + MIN_VALIDATION_ROWS;
@@ -74,37 +79,26 @@ function buildTemplateWorkbook({ marka, altKategori, segment, lifestyleGrup, row
     COLUMN_DEFS.forEach((col, colIdx) => {
       const colLetter = String.fromCharCode(65 + colIdx);
       const cell = sheet.getCell(`${colLetter}${rowNum}`);
-      if (col.namedRange) {
+      if (col.kind === 'lookup') {
         cell.dataValidation = {
           type: 'list',
           allowBlank: true,
           formulae: [col.namedRange],
           showErrorMessage: true,
           errorStyle: 'stop',
-          errorTitle: `Ge\u00e7ersiz ${col.header}`,
-          error: `L\u00fctfen listeden bir ${col.header} de\u011feri se\u00e7in.`
+          errorTitle: `Geçersiz ${col.header}`,
+          error: `Lütfen listeden bir ${col.header} değeri seçin.`
         };
-      } else if (col.key === 'mu') {
+      } else {
         cell.dataValidation = {
           type: 'decimal',
           operator: 'between',
           allowBlank: true,
-          formulae: [MU_MIN, MU_MAX],
+          formulae: [col.min, col.max],
           showErrorMessage: true,
           errorStyle: 'stop',
-          errorTitle: 'Ge\u00e7ersiz MU',
-          error: `MU ${MU_MIN} ile ${MU_MAX} aras\u0131nda say\u0131sal bir de\u011fer olmal\u0131d\u0131r.`
-        };
-      } else if (col.key === 'sarf') {
-        cell.dataValidation = {
-          type: 'decimal',
-          operator: 'between',
-          allowBlank: true,
-          formulae: [SARF_MIN, SARF_MAX],
-          showErrorMessage: true,
-          errorStyle: 'stop',
-          errorTitle: 'Ge\u00e7ersiz Sarf',
-          error: `Sarf ${SARF_MIN} ile ${SARF_MAX} aras\u0131nda say\u0131sal bir de\u011fer olmal\u0131d\u0131r.`
+          errorTitle: `Geçersiz ${col.header}`,
+          error: `${col.header} ${col.min} ile ${col.max} arasında sayısal bir değer olmalıdır.`
         };
       }
     });
@@ -125,7 +119,7 @@ function cellText(rawValue) {
 
 function buildLookupIndex(list, idKey) {
   const map = new Map();
-  for (const item of list) {
+  for (const item of list || []) {
     const key = norm(item.ad);
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(item[idKey]);
@@ -134,107 +128,106 @@ function buildLookupIndex(list, idKey) {
 }
 
 /**
- * Saf fonksiyon: ExcelJS worksheet'ini (zaten y\u00fcklenmi\u015f) ve referans listelerini/mevcut
- * kay\u0131tlar\u0131 alarak sat\u0131r sat\u0131r do\u011frulama yapar. DB'ye yazmaz.
+ * Saf fonksiyon: ExcelJS worksheet'ini (zaten yüklenmiş) ve referans listelerini/mevcut
+ * kayıtları alarak satır satır doğrulama yapar. DB'ye yazmaz.
  */
-function validateSheetRows(sheet, { marka, altKategori, segment, lifestyleGrup }, existingRows) {
-  const markaIdx = buildLookupIndex(marka, 'marka_id');
-  const altIdx = buildLookupIndex(altKategori, 'alt_kategori_id');
-  const segIdx = buildLookupIndex(segment, 'segment_id');
-  const lifeIdx = buildLookupIndex(lifestyleGrup, 'lifestyle_grup_id');
+function validateSheetRows(sheet, refs, existingRows) {
+  const lookupIndexes = {};
+  LOOKUP_COLUMNS.forEach((col) => {
+    lookupIndexes[col.key] = buildLookupIndex(refs[col.refKey], col.idKey);
+  });
 
   const existingKeys = new Set(
-    (existingRows || []).map(
-      (r) => `${r.marka_id}-${r.alt_kategori_id}-${r.segment_id}-${r.lifestyle_grup_id}`
-    )
+    (existingRows || []).map((r) => LOOKUP_COLUMNS.map((col) => r[col.idKey]).join('~'))
   );
 
   const seenInFile = new Map();
   const results = [];
 
-  // includeEmpty: Excel dosyas\u0131ndaki bo\u015f (sadece veri do\u011frulamas\u0131 uygulanm\u0131\u015f, hen\u00fcz
-  // de\u011fer girilmemi\u015f) sat\u0131rlar da d\u00f6ng\u00fcye dahil edilir; bu sat\u0131rlar a\u015fa\u011f\u0131daki isEmpty
-  // kontrol\u00fcyle zaten atlan\u0131yor. Aksi halde ExcelJS varsay\u0131lan olarak "ger\u00e7ek de\u011fer"
-  // i\u00e7ermeyen sat\u0131rlar\u0131 (\u00f6r. \u015fablonun kulland\u0131rmad\u0131\u011f\u0131 do\u011frulama sat\u0131rlar\u0131n\u0131) atlayabiliyor.
+  // includeEmpty: Excel dosyasındaki boş (sadece veri doğrulaması uygulanmış, henüz
+  // değer girilmemiş) satırlar da döngüye dahil edilir; bu satırlar aşağıdaki isEmpty
+  // kontrolüyle zaten atlanıyor. Aksi halde ExcelJS varsayılan olarak "gerçek değer"
+  // içermeyen satırları (ör. şablonun kullandırmadığı doğrulama satırlarını) atlayabiliyor.
   sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
     if (rowNumber === 1) return;
 
     const values = row.values;
-    const markaTxt = cellText(values[1]);
-    const altTxt = cellText(values[2]);
-    const segTxt = cellText(values[3]);
-    const lifeTxt = cellText(values[4]);
-    const muRaw = values[5];
-    const sarfRaw = values[6];
-    const muTxt = cellText(muRaw);
-    const sarfTxt = cellText(sarfRaw);
+    const texts = {};
+    COLUMN_DEFS.forEach((col, idx) => {
+      texts[col.key] = cellText(values[idx + 1]);
+    });
 
-    const isEmpty = !markaTxt && !altTxt && !segTxt && !lifeTxt && !muTxt && !sarfTxt;
+    const isEmpty = COLUMN_DEFS.every((col) => !texts[col.key]);
     if (isEmpty) return;
 
     const errors = [];
+    const resolved = {};
+    const display = {};
 
-    const lookupOne = (idx, label, txt) => {
+    LOOKUP_COLUMNS.forEach((col) => {
+      const txt = texts[col.key];
+      display[col.key] = txt;
       if (!txt) {
-        errors.push(`${label} bo\u015f olamaz.`);
-        return null;
+        errors.push(`${col.header} boş olamaz.`);
+        resolved[col.resolvedKey] = null;
+        return;
       }
-      const matches = idx.get(norm(txt));
+      const matches = lookupIndexes[col.key].get(norm(txt));
       if (!matches || matches.length === 0) {
-        errors.push(`${label} listede bulunamad\u0131: "${txt}"`);
-        return null;
-      }
-      if (matches.length > 1) {
-        errors.push(`${label} i\u00e7in birden fazla e\u015fle\u015fme bulundu: "${txt}"`);
-        return null;
-      }
-      return matches[0];
-    };
-
-    const markaId = lookupOne(markaIdx, 'Marka', markaTxt);
-    const altKategoriId = lookupOne(altIdx, 'Alt Kategori', altTxt);
-    const segmentId = lookupOne(segIdx, 'Segment', segTxt);
-    const lifestyleGrupId = lookupOne(lifeIdx, 'LifeStyle Grubu', lifeTxt);
-
-    const mu = Number(muTxt);
-    const sarf = Number(sarfTxt);
-    if (!muTxt || Number.isNaN(mu)) {
-      errors.push('MU say\u0131sal olmal\u0131d\u0131r.');
-    } else if (mu <= MU_MIN || mu > MU_MAX) {
-      errors.push(`MU ${MU_MIN} ile ${MU_MAX} aras\u0131nda olmal\u0131d\u0131r.`);
-    }
-    if (!sarfTxt || Number.isNaN(sarf)) {
-      errors.push('Sarf say\u0131sal olmal\u0131d\u0131r.');
-    } else if (sarf < SARF_MIN || sarf > SARF_MAX) {
-      errors.push(`Sarf ${SARF_MIN} ile ${SARF_MAX} aras\u0131nda olmal\u0131d\u0131r.`);
-    }
-
-    let key = null;
-    const hasAllIds = [markaId, altKategoriId, segmentId, lifestyleGrupId].every((v) => v != null);
-    if (hasAllIds) {
-      key = `${markaId}-${altKategoriId}-${segmentId}-${lifestyleGrupId}`;
-      if (seenInFile.has(key)) {
-        errors.push(`Bu k\u0131r\u0131l\u0131m \u015fablonda ${seenInFile.get(key)}. sat\u0131rla tekrar ediyor.`);
+        errors.push(`${col.header} listede bulunamadı: "${txt}"`);
+        resolved[col.resolvedKey] = null;
+      } else if (matches.length > 1) {
+        errors.push(`${col.header} için birden fazla eşleşme bulundu: "${txt}"`);
+        resolved[col.resolvedKey] = null;
       } else {
-        seenInFile.set(key, rowNumber);
+        resolved[col.resolvedKey] = matches[0];
+      }
+    });
+
+    const numberColumns = COLUMN_DEFS.filter((c) => c.kind === 'number');
+    numberColumns.forEach((col) => {
+      const txt = texts[col.key];
+      display[col.key] = txt;
+      const num = Number(txt);
+      if (!txt || Number.isNaN(num)) {
+        errors.push(`${col.header} sayısal olmalıdır.`);
+        resolved[col.resolvedKey] = txt;
+      } else if (num < col.min || num > col.max) {
+        errors.push(`${col.header} ${col.min} ile ${col.max} arasında olmalıdır.`);
+        resolved[col.resolvedKey] = num;
+      } else {
+        resolved[col.resolvedKey] = num;
+      }
+    });
+
+    let fileKey = null;
+    const hasAllLookupIds = LOOKUP_COLUMNS.every((col) => resolved[col.resolvedKey] != null);
+    if (hasAllLookupIds) {
+      fileKey = LOOKUP_COLUMNS.map((col) => resolved[col.resolvedKey]).join('~');
+      if (seenInFile.has(fileKey)) {
+        errors.push(`Bu kırılım şablonda ${seenInFile.get(fileKey)}. satırla tekrar ediyor.`);
+      } else {
+        seenInFile.set(fileKey, rowNumber);
       }
     }
 
     const status = errors.length === 0 ? 'ok' : 'error';
-    const action = status === 'ok' ? (existingKeys.has(key) ? 'update' : 'insert') : null;
+    const action = status === 'ok' ? (existingKeys.has(fileKey) ? 'update' : 'insert') : null;
 
     results.push({
       rowNumber,
-      marka: markaTxt,
-      altKategori: altTxt,
-      segment: segTxt,
-      lifestyleGrup: lifeTxt,
-      mu: Number.isNaN(mu) ? muTxt : mu,
-      sarf: Number.isNaN(sarf) ? sarfTxt : sarf,
+      marka: display.marka,
+      altKategori: display.altKategori,
+      segment: display.segment,
+      lifestyleGrup: display.lifestyleGrup,
+      sezon: display.sezon,
+      altSezon: display.altSezon,
+      mu: display.mu,
+      sarf: display.sarf,
       status,
       errors,
       action,
-      resolved: status === 'ok' ? { markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf } : null
+      resolved: status === 'ok' ? resolved : null
     });
   });
 
@@ -246,15 +239,21 @@ function validateSheetRows(sheet, { marka, altKategori, segment, lifestyleGrup }
   };
 }
 
-async function buildTemplateWorkbookFromDb() {
-  const [marka, altKategori, segment, lifestyleGrup, rows] = await Promise.all([
+async function fetchAllRefs() {
+  const [marka, altKategori, segment, lifestyleGrup, sezon, altSezon] = await Promise.all([
     refService.listMarka(),
     refService.listAltKategori(),
     refService.listSegment(),
     refService.listLifestyleGrup(),
-    parameterService.listParameters()
+    refService.listSezon(),
+    refService.listAltSezon()
   ]);
-  return buildTemplateWorkbook({ marka, altKategori, segment, lifestyleGrup, rows });
+  return { marka, altKategori, segment, lifestyleGrup, sezon, altSezon };
+}
+
+async function buildTemplateWorkbookFromDb() {
+  const [refs, rows] = await Promise.all([fetchAllRefs(), parameterService.listParameters()]);
+  return buildTemplateWorkbook({ refs, rows });
 }
 
 async function parseAndValidateWorkbookBuffer(buffer) {
@@ -262,18 +261,12 @@ async function parseAndValidateWorkbookBuffer(buffer) {
   await workbook.xlsx.load(buffer);
   const sheet = workbook.getWorksheet(SHEET_NAME) || workbook.worksheets[0];
   if (!sheet) {
-    throw new Error('Excel dosyas\u0131nda beklenen sayfa bulunamad\u0131.');
+    throw new Error('Excel dosyasında beklenen sayfa bulunamadı.');
   }
 
-  const [marka, altKategori, segment, lifestyleGrup, existingRows] = await Promise.all([
-    refService.listMarka(),
-    refService.listAltKategori(),
-    refService.listSegment(),
-    refService.listLifestyleGrup(),
-    parameterService.listParameters()
-  ]);
+  const [refs, existingRows] = await Promise.all([fetchAllRefs(), parameterService.listParameters()]);
 
-  return validateSheetRows(sheet, { marka, altKategori, segment, lifestyleGrup }, existingRows);
+  return validateSheetRows(sheet, refs, existingRows);
 }
 
 module.exports = {
@@ -281,5 +274,6 @@ module.exports = {
   buildTemplateWorkbookFromDb,
   validateSheetRows,
   parseAndValidateWorkbookBuffer,
-  SHEET_NAME
+  SHEET_NAME,
+  COLUMN_DEFS
 };

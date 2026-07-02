@@ -35,6 +35,14 @@
           <select id="lifestyleGrup" required></select>
         </div>
         <div class="form-field">
+          <label for="sezon">Sezon</label>
+          <select id="sezon" required></select>
+        </div>
+        <div class="form-field">
+          <label for="altSezon">Alt Sezon</label>
+          <select id="altSezon" required></select>
+        </div>
+        <div class="form-field">
           <label for="mu">MU (Markup)</label>
           <input type="number" id="mu" step="0.01" min="0" required>
         </div>
@@ -49,7 +57,7 @@
           <button type="button" class="btn btn-secondary" id="cancel-edit-btn" style="display:none;">Vazgeç</button>
         </div>
       </div>
-      <p class="hint">Aynı Marka + Alt Kategori + Segment + LifeStyle Grubu kombinasyonu tekrar eklenemez (benzersiz kırılım).</p>
+      <p class="hint">Aynı Marka + Alt Kategori + Segment + LifeStyle Grubu + Sezon + Alt Sezon kombinasyonu tekrar eklenemez (benzersiz kırılım).</p>
     </form>
   </section>
 
@@ -63,6 +71,10 @@
       <div class="form-field">
         <label for="filter-alt-kategori">Alt Kategori Filtrele</label>
         <select id="filter-alt-kategori"><option value="">Tümü</option></select>
+      </div>
+      <div class="form-field">
+        <label for="filter-sezon">Sezon Filtrele</label>
+        <select id="filter-sezon"><option value="">Tümü</option></select>
       </div>
       <div class="form-field">
         <label>&nbsp;</label>
@@ -86,6 +98,8 @@
             <th>Alt Kategori</th>
             <th>Segment</th>
             <th>LifeStyle Grubu</th>
+            <th>Sezon</th>
+            <th>Alt Sezon</th>
             <th>MU</th>
             <th>Sarf</th>
             <th>Güncelleme</th>
@@ -117,7 +131,7 @@
         <thead>
           <tr>
             <th>#</th><th>Marka</th><th>Alt Kategori</th><th>Segment</th><th>LifeStyle</th>
-            <th>MU</th><th>Sarf</th><th>Durum</th><th>Detay</th>
+            <th>Sezon</th><th>Alt Sezon</th><th>MU</th><th>Sarf</th><th>Durum</th><th>Detay</th>
           </tr>
         </thead>
         <tbody id="import-modal-table-body"></tbody>
