@@ -66,6 +66,15 @@
       </div>
       <div class="form-field">
         <label>&nbsp;</label>
+        <a class="btn btn-secondary" id="template-download-btn" href="/api/parameters/template">⬇️ Excel Şablonu İndir</a>
+      </div>
+      <div class="form-field">
+        <label>&nbsp;</label>
+        <button type="button" class="btn btn-secondary" id="import-excel-btn">📤 Excel'den Yükle</button>
+        <input type="file" id="import-file-input" accept=".xlsx" style="display:none;">
+      </div>
+      <div class="form-field">
+        <label>&nbsp;</label>
         <button type="button" class="btn btn-secondary" id="sync-plm-btn">🔄 PLM'den İsim Listelerini Senkronize Et</button>
       </div>
     </div>
@@ -95,6 +104,31 @@
     <div id="settings-list" class="form-grid"></div>
   </section>
 </main>
+
+<div id="import-modal-overlay" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Excel İçe Aktarma Önizlemesi</div>
+      <button type="button" class="btn btn-secondary btn-small" id="import-modal-close">Kapat ✕</button>
+    </div>
+    <div class="modal-summary" id="import-modal-summary"></div>
+    <div class="modal-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Marka</th><th>Alt Kategori</th><th>Segment</th><th>LifeStyle</th>
+            <th>MU</th><th>Sarf</th><th>Durum</th><th>Detay</th>
+          </tr>
+        </thead>
+        <tbody id="import-modal-table-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary" id="import-modal-commit">İçe Aktar</button>
+      <button type="button" class="btn btn-secondary" id="import-modal-cancel">Vazgeç</button>
+    </div>
+  </div>
+</div>
 
 <div id="toast" class="toast"></div>
 

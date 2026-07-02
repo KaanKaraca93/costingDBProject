@@ -59,6 +59,22 @@ GET  /api/settings
 PUT  /api/settings/:key                     { value }
 ```
 
+### Excel şablon indirme / toplu içe aktarma
+```
+GET  /api/parameters/template               Mevcut kayıtlarla dolu, dropdown veri doğrulamalı .xlsx şablonu
+                                             (?format=base64 verilirse JSON içinde {filename, contentBase64} döner — PLM widget'ı bunu kullanır)
+POST /api/parameters/import/validate        { fileBase64 } — DB'ye yazmadan satır satır eşleşme/doğrulama kontrolü yapar
+POST /api/parameters/import/commit          { rows: [...], updatedBy } — /import/validate'den dönen "ok" satırları upsert eder
+```
+
+Şablonda Marka/Alt Kategori/Segment/LifeStyle Grubu kolonları **isim** olarak gelir (ID değil)
+ve her hücrede Excel veri doğrulaması (açılır liste) bulunur; kullanıcı listede olmayan bir
+değer yazarsa Excel anında uyarır. Yükleme sırasında da sunucu tarafında aynı kontrol tekrar
+yapılır: eşleşmeyen/eksik/tekrar eden satırlar `import/validate` cevabında hata olarak işaretlenir
+ve **içe aktarılmaz**; sadece geçerli satırlar `import/commit` ile eklenir/güncellenir. Hem
+standalone web arayüzünde ("⬇️ Excel Şablonu İndir" / "📤 Excel'den Yükle") hem de PLM widget'ında
+("Şablon İndir" / "Excel'den Yükle") aynı akış kullanılabilir.
+
 ### Swagger / OpenAPI
 
 Tüm endpoint'lerin interaktif dokümantasyonu: **`/api-docs`** (örn. yerelde

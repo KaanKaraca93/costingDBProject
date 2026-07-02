@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const parameterService = require('../services/parameterService');
 const refService = require('../services/refService');
+const importExportService = require('../services/importExportService');
 
 /**
  * @swagger
@@ -111,6 +112,135 @@ router.get('/parameters/resolve', async (req, res) => {
       sarf: fallbackSarf,
       kdvOrani
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/parameters/template:
+ *   get:
+ *     summary: Marka/Alt Kategori/Segment/LifeStyle Grubu isimleriyle dolu, dropdown veri
+ *       doğrulamalı Excel şablonu üretir (mevcut kayıtlar dahil).
+ *     description: >
+ *       `format=base64` verilirse (PLM widget içinden çağrı için) JSON içinde
+ *       `{ filename, contentBase64 }` döner; aksi halde tarayıcıdan doğrudan indirilebilecek
+ *       bir .xlsx dosyası (Content-Disposition: attachment) döner.
+ *     tags: [Parametreler]
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         schema: { type: string, enum: [base64] }
+ *         description: "base64 verilirse JSON içinde base64 içerik döner"
+ *     responses:
+ *       200: { description: Başarılı }
+ */
+router.get('/parameters/template', async (req, res) => {
+  try {
+    const workbook = await importExportService.buildTemplateWorkbookFromDb();
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `karar_tablosu_sablonu_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+    if (req.query.format === 'base64') {
+      return res.json({ filename, contentBase64: Buffer.from(buffer).toString('base64') });
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/parameters/import/validate:
+ *   post:
+ *     summary: Yüklenen Excel dosyasını DB'ye yazmadan doğrular (kırılım eşleşme kontrolü)
+ *     description: >
+ *       Her satır için Marka/Alt Kategori/Segment/LifeStyle Grubu isimleri referans
+ *       tablolarıyla eşleştirilir; eşleşmeyen, eksik, sayısal olmayan veya şablon içinde
+ *       tekrar eden satırlar hata olarak işaretlenir. DB'de hiçbir değişiklik yapılmaz.
+ *     tags: [Parametreler]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [fileBase64]
+ *             properties:
+ *               fileBase64: { type: string, description: "Excel (.xlsx) dosyasının base64 içeriği" }
+ *     responses:
+ *       200:
+ *         description: Satır bazlı doğrulama sonucu
+ *       400: { description: fileBase64 eksik }
+ */
+router.post('/parameters/import/validate', async (req, res) => {
+  try {
+    const { fileBase64 } = req.body;
+    if (!fileBase64) {
+      return res.status(400).json({ error: 'fileBase64 zorunludur.' });
+    }
+    const buffer = Buffer.from(fileBase64, 'base64');
+    const result = await importExportService.parseAndValidateWorkbookBuffer(buffer);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Excel dosyası okunamadı: ' + err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/parameters/import/commit:
+ *   post:
+ *     summary: Doğrulanmış satırları toplu olarak ekler/günceller (upsert)
+ *     description: >
+ *       `/import/validate` çağrısından dönen ve `status = "ok"` olan satırların `resolved`
+ *       nesneleri bu endpoint'e gönderilmelidir. Aynı kırılım zaten varsa MU/Sarf güncellenir,
+ *       yoksa yeni kayıt oluşturulur.
+ *     tags: [Parametreler]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [rows]
+ *             properties:
+ *               rows:
+ *                 type: array
+ *                 items: { $ref: '#/components/schemas/ParameterInput' }
+ *               updatedBy: { type: string }
+ *     responses:
+ *       200: { description: "İçe aktarma özeti (eklenen/güncellenen/başarısız sayıları)" }
+ *       400: { description: rows eksik veya boş }
+ */
+router.post('/parameters/import/commit', async (req, res) => {
+  try {
+    const { rows, updatedBy } = req.body;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'İçe aktarılacak satır bulunamadı.' });
+    }
+
+    let inserted = 0;
+    let updated = 0;
+    const failed = [];
+
+    for (const row of rows) {
+      try {
+        const error = validateBody(row);
+        if (error) throw new Error(error);
+        const result = await parameterService.upsertParameter(row, updatedBy);
+        if (result.inserted) inserted++; else updated++;
+      } catch (err) {
+        failed.push({ row, error: err.message });
+      }
+    }
+
+    res.json({ success: failed.length === 0, inserted, updated, failed });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -87,11 +87,31 @@ async function deleteParameter(id) {
   return rowCount > 0;
 }
 
+/**
+ * Marka/AltKategori/Segment/LifeStyleGrup k\u0131r\u0131l\u0131m\u0131 zaten varsa g\u00fcnceller, yoksa olu\u015fturur.
+ * Excel toplu i\u00e7e aktarma ak\u0131\u015f\u0131 i\u00e7in kullan\u0131l\u0131r. Postgres'in sistem kolonu `xmax`in
+ * INSERT sonras\u0131 0 olmas\u0131ndan faydalan\u0131p sat\u0131r\u0131n yeni mi g\u00fcncellenmi\u015f mi oldu\u011funu d\u00f6ner.
+ */
+async function upsertParameter(data, updatedBy) {
+  const { markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf } = data;
+  const { rows } = await pool.query(
+    `INSERT INTO decision_parameters
+       (marka_id, alt_kategori_id, segment_id, lifestyle_grup_id, mu, sarf, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (marka_id, alt_kategori_id, segment_id, lifestyle_grup_id)
+     DO UPDATE SET mu = EXCLUDED.mu, sarf = EXCLUDED.sarf, updated_by = EXCLUDED.updated_by, updated_at = now()
+     RETURNING id, (xmax = 0) AS inserted`,
+    [markaId, altKategoriId, segmentId, lifestyleGrupId, mu, sarf, updatedBy || null]
+  );
+  return { id: rows[0].id, inserted: rows[0].inserted, row: await getParameterById(rows[0].id) };
+}
+
 module.exports = {
   listParameters,
   getParameterById,
   findByKey,
   createParameter,
   updateParameter,
-  deleteParameter
+  deleteParameter,
+  upsertParameter
 };

@@ -3,8 +3,16 @@ const state = {
   altKategori: [],
   segment: [],
   lifestyleGrup: [],
-  parameters: []
+  parameters: [],
+  importPreview: null
 };
+
+function escapeHtml(value) {
+  if (value == null) return '';
+  return String(value).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
 
 function toast(message, type = 'success') {
   const el = document.getElementById('toast');
@@ -228,6 +236,124 @@ document.getElementById('sync-plm-btn').addEventListener('click', async () => {
   } finally {
     btn.disabled = false;
     btn.textContent = "🔄 PLM'den İsim Listelerini Senkronize Et";
+  }
+});
+
+// ── Excel şablon indirme / içe aktarma ─────────────────────────────────
+
+function renderImportModal() {
+  const preview = state.importPreview;
+  const overlay = document.getElementById('import-modal-overlay');
+  if (!preview) {
+    overlay.style.display = 'none';
+    return;
+  }
+  overlay.style.display = 'flex';
+
+  document.getElementById('import-modal-summary').innerHTML = `
+    Toplam <strong>${preview.totalRows}</strong> satır
+    &nbsp;—&nbsp; <span class="badge badge-ok">${preview.validCount} geçerli</span>
+    &nbsp; <span class="badge badge-error">${preview.errorCount} hatalı</span>
+    ${preview.errorCount > 0
+      ? '<div class="modal-hint">Hatalı satırlar içe aktarılmayacak. Düzeltmek için Excel dosyasını güncelleyip tekrar yükleyebilirsiniz.</div>'
+      : ''}
+  `;
+
+  const tbody = document.getElementById('import-modal-table-body');
+  if (!preview.rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Satır bulunamadı.</td></tr>';
+  } else {
+    tbody.innerHTML = preview.rows.map((r) => {
+      const rowClass = r.status === 'ok' ? `import-row-ok-${r.action}` : 'import-row-error';
+      const statusLabel = r.status === 'ok' ? (r.action === 'insert' ? 'Yeni kayıt' : 'Güncellenecek') : 'Hata';
+      return `
+        <tr class="${rowClass}">
+          <td>${r.rowNumber}</td>
+          <td>${escapeHtml(r.marka)}</td>
+          <td>${escapeHtml(r.altKategori)}</td>
+          <td>${escapeHtml(r.segment)}</td>
+          <td>${escapeHtml(r.lifestyleGrup)}</td>
+          <td>${escapeHtml(r.mu)}</td>
+          <td>${escapeHtml(r.sarf)}</td>
+          <td class="import-status">${statusLabel}</td>
+          <td class="import-errors">${escapeHtml((r.errors || []).join(' • '))}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('import-modal-commit').disabled = preview.validCount === 0;
+}
+
+function closeImportModal() {
+  state.importPreview = null;
+  renderImportModal();
+}
+
+async function handleImportFile(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const dataUrl = String(reader.result || '');
+    const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    const btn = document.getElementById('import-excel-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Kontrol ediliyor...';
+    try {
+      const result = await api('/api/parameters/import/validate', {
+        method: 'POST',
+        body: JSON.stringify({ fileBase64: base64 })
+      });
+      state.importPreview = result;
+      renderImportModal();
+    } catch (err) {
+      toast('Excel doğrulanamadı: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "📤 Excel'den Yükle";
+    }
+  };
+  reader.onerror = () => toast('Dosya okunamadı.', 'error');
+  reader.readAsDataURL(file);
+}
+
+document.getElementById('import-excel-btn').addEventListener('click', () => {
+  document.getElementById('import-file-input').click();
+});
+
+document.getElementById('import-file-input').addEventListener('change', (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (file) handleImportFile(file);
+});
+
+document.getElementById('import-modal-close').addEventListener('click', closeImportModal);
+document.getElementById('import-modal-cancel').addEventListener('click', closeImportModal);
+
+document.getElementById('import-modal-commit').addEventListener('click', async () => {
+  if (!state.importPreview) return;
+  const validRows = state.importPreview.rows.filter((r) => r.status === 'ok').map((r) => r.resolved);
+  if (!validRows.length) return;
+
+  const btn = document.getElementById('import-modal-commit');
+  btn.disabled = true;
+  btn.textContent = 'İçe aktarılıyor...';
+  try {
+    const result = await api('/api/parameters/import/commit', {
+      method: 'POST',
+      body: JSON.stringify({ rows: validRows, updatedBy: 'Web Uygulaması' })
+    });
+    const failedCount = (result.failed || []).length;
+    toast(
+      `İçe aktarma tamamlandı: ${result.inserted} yeni, ${result.updated} güncellendi${failedCount ? ', ' + failedCount + ' başarısız' : ''}.`,
+      failedCount ? 'error' : 'success'
+    );
+    closeImportModal();
+    await loadParameters();
+  } catch (err) {
+    toast('İçe aktarılamadı: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'İçe Aktar';
   }
 });
 
