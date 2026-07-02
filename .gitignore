@@ -33,3 +33,6 @@ coverage/
 # Build
 dist/
 build/
+
+# Swagger (PLM'e manuel import icin uretiliyor - git'e commit etme)
+swagger.json
