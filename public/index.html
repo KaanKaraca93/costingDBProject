@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ipekyol Maliyet Parametreleri</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>Ipekyol Maliyet Parametreleri (MU / Sarf)</h1>
+  <p>Target Cost Calculator widget'ının kullandığı marka / alt kategori / segment / lifestyle grup bazlı parametreleri yönetin.</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2 id="form-title">Yeni Parametre Ekle</h2>
+    <form id="parameter-form">
+      <input type="hidden" id="parameter-id">
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="marka">Marka</label>
+          <select id="marka" required></select>
+        </div>
+        <div class="form-field">
+          <label for="altKategori">Alt Kategori</label>
+          <select id="altKategori" required></select>
+        </div>
+        <div class="form-field">
+          <label for="segment">Segment</label>
+          <select id="segment" required></select>
+        </div>
+        <div class="form-field">
+          <label for="lifestyleGrup">LifeStyle Grubu</label>
+          <select id="lifestyleGrup" required></select>
+        </div>
+        <div class="form-field">
+          <label for="mu">MU (Markup)</label>
+          <input type="number" id="mu" step="0.01" min="0" required>
+        </div>
+        <div class="form-field">
+          <label for="sarf">Sarf</label>
+          <input type="number" id="sarf" step="0.001" min="0" required>
+        </div>
+        <div class="form-field">
+          <button type="submit" class="btn btn-primary" id="submit-btn">Kaydet</button>
+        </div>
+        <div class="form-field">
+          <button type="button" class="btn btn-secondary" id="cancel-edit-btn" style="display:none;">Vazgeç</button>
+        </div>
+      </div>
+      <p class="hint">Aynı Marka + Alt Kategori + Segment + LifeStyle Grubu kombinasyonu tekrar eklenemez (benzersiz kırılım).</p>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Parametre Listesi</h2>
+    <div class="filters">
+      <div class="form-field">
+        <label for="filter-marka">Marka Filtrele</label>
+        <select id="filter-marka"><option value="">Tümü</option></select>
+      </div>
+      <div class="form-field">
+        <label for="filter-alt-kategori">Alt Kategori Filtrele</label>
+        <select id="filter-alt-kategori"><option value="">Tümü</option></select>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Marka</th>
+            <th>Alt Kategori</th>
+            <th>Segment</th>
+            <th>LifeStyle Grubu</th>
+            <th>MU</th>
+            <th>Sarf</th>
+            <th>Güncelleme</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="parameter-table-body">
+        </tbody>
+      </table>
+      <div id="empty-state" class="empty-state" style="display:none;">Kayıt bulunamadı.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Genel Ayarlar</h2>
+    <div id="settings-list" class="form-grid"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
