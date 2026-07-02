@@ -213,6 +213,24 @@ document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
 document.getElementById('filter-marka').addEventListener('change', loadParameters);
 document.getElementById('filter-alt-kategori').addEventListener('change', loadParameters);
 
+document.getElementById('sync-plm-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('sync-plm-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Senkronize ediliyor...';
+  try {
+    const result = await api('/api/ref/sync-from-plm', { method: 'POST' });
+    const s = result.synced;
+    toast(`PLM senkronizasyonu tamam: Marka ${s.marka}, Alt Kategori ${s.altKategori}, Segment ${s.segment}, LifeStyle ${s.lifestyleGrup}`);
+    await loadRefData();
+    await loadParameters();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🔄 PLM'den İsim Listelerini Senkronize Et";
+  }
+});
+
 (async function init() {
   try {
     await loadRefData();

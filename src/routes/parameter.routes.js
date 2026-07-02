@@ -3,6 +3,23 @@ const router = express.Router();
 const parameterService = require('../services/parameterService');
 const refService = require('../services/refService');
 
+/**
+ * @swagger
+ * /api/parameters:
+ *   get:
+ *     summary: Parametre listesi (opsiyonel filtreli)
+ *     tags: [Parametreler]
+ *     parameters:
+ *       - in: query
+ *         name: markaId
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: altKategoriId
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
 router.get('/parameters', async (req, res) => {
   try {
     const { markaId, altKategoriId } = req.query;
@@ -14,9 +31,50 @@ router.get('/parameters', async (req, res) => {
 });
 
 /**
- * PLM widget entegrasyonu için: verilen kırılıma ait MU/Sarf'ı döner.
- * Eşleşme bulunamazsa spec Bölüm 6'daki fallback davranışını uygular.
- * GET /api/parameters/resolve?marka=4&altKategori=102&segment=3&lifestyleGrup=8
+ * @swagger
+ * /api/parameters/resolve:
+ *   get:
+ *     summary: PLM widget entegrasyonu — kırılıma göre MU/Sarf/KDV çözümleme
+ *     description: >
+ *       Verilen 4'lü kırılım (marka, altKategori, segment, lifestyleGrup) için decision_parameters
+ *       tablosunda eşleşme arar. Eşleşme bulunursa oradaki MU/Sarf değerlerini, bulunamazsa
+ *       PARAMETER_DB_SPEC.md Bölüm 6'daki fallback kurallarını (lifestyleGrup=2 ise MU=3.15,
+ *       aksi halde MU=4.94, Sarf=1.5) uygular. Bu endpoint PLM token gerektirmez, doğrudan
+ *       herkese açık bir REST çağrısıdır.
+ *     tags: [Parametreler]
+ *     parameters:
+ *       - in: query
+ *         name: marka
+ *         required: true
+ *         schema: { type: integer }
+ *         example: 4
+ *       - in: query
+ *         name: altKategori
+ *         required: true
+ *         schema: { type: integer }
+ *         example: 100
+ *       - in: query
+ *         name: segment
+ *         required: true
+ *         schema: { type: integer }
+ *         example: 3
+ *       - in: query
+ *         name: lifestyleGrup
+ *         required: true
+ *         schema: { type: integer }
+ *         example: 8
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 source: { type: string, enum: [decision_parameters, fallback] }
+ *                 mu: { type: number, example: 4.94 }
+ *                 sarf: { type: number, example: 1.5 }
+ *                 kdvOrani: { type: number, example: 0.10 }
  */
 router.get('/parameters/resolve', async (req, res) => {
   try {
@@ -58,6 +116,21 @@ router.get('/parameters/resolve', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/parameters/{id}:
+ *   get:
+ *     summary: Tek bir parametre kaydını getirir
+ *     tags: [Parametreler]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: Başarılı }
+ *       404: { description: Kayıt bulunamadı }
+ */
 router.get('/parameters/:id', async (req, res) => {
   try {
     const row = await parameterService.getParameterById(req.params.id);
@@ -79,6 +152,22 @@ function validateBody(body) {
   return null;
 }
 
+/**
+ * @swagger
+ * /api/parameters:
+ *   post:
+ *     summary: Yeni parametre kaydı oluşturur
+ *     tags: [Parametreler]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ParameterInput'
+ *     responses:
+ *       201: { description: Oluşturuldu }
+ *       409: { description: Bu kombinasyon zaten mevcut }
+ */
 router.post('/parameters', async (req, res) => {
   try {
     const error = validateBody(req.body);
@@ -99,6 +188,28 @@ router.post('/parameters', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/parameters/{id}:
+ *   put:
+ *     summary: Mevcut parametre kaydını günceller
+ *     tags: [Parametreler]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ParameterInput'
+ *     responses:
+ *       200: { description: Güncellendi }
+ *       404: { description: Kayıt bulunamadı }
+ *       409: { description: Bu kombinasyon zaten mevcut }
+ */
 router.put('/parameters/:id', async (req, res) => {
   try {
     const error = validateBody(req.body);
@@ -115,6 +226,21 @@ router.put('/parameters/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/parameters/{id}:
+ *   delete:
+ *     summary: Parametre kaydını siler
+ *     tags: [Parametreler]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: Silindi }
+ *       404: { description: Kayıt bulunamadı }
+ */
 router.delete('/parameters/:id', async (req, res) => {
   try {
     const deleted = await parameterService.deleteParameter(req.params.id);

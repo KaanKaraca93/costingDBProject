@@ -28,6 +28,50 @@ async function upsertAltKategori(altKategoriId, ad) {
   );
 }
 
+const REF_TABLE_CONFIG = {
+  marka: { table: 'ref_marka', idColumn: 'marka_id' },
+  altKategori: { table: 'ref_alt_kategori', idColumn: 'alt_kategori_id' },
+  segment: { table: 'ref_segment', idColumn: 'segment_id' },
+  lifestyleGrup: { table: 'ref_lifestyle_grup', idColumn: 'lifestyle_grup_id' }
+};
+
+async function upsertRefItems(type, items) {
+  const config = REF_TABLE_CONFIG[type];
+  if (!config) throw new Error(`Bilinmeyen ref tipi: ${type}`);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO ${config.table} (${config.idColumn}, ad) VALUES ($1, $2)
+         ON CONFLICT (${config.idColumn}) DO UPDATE SET ad = EXCLUDED.ad`,
+        [item.id, item.name]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return items.length;
+}
+
+/**
+ * PLM'den çekilen tüm lookup listelerini (marka/altKategori/segment/lifestyleGrup)
+ * ilgili ref_* tablolarına upsert eder. Mevcutta olup PLM'de artık dönmeyen kayıtlar
+ * silinmez (decision_parameters'daki referanslar kopmasın diye).
+ */
+async function syncRefTablesFromPlm(lookups) {
+  const result = {};
+  for (const type of Object.keys(REF_TABLE_CONFIG)) {
+    result[type] = await upsertRefItems(type, lookups[type] || []);
+  }
+  return result;
+}
+
 async function getSetting(key) {
   const { rows } = await pool.query('SELECT value FROM app_settings WHERE key = $1', [key]);
   return rows[0] ? rows[0].value : null;
@@ -52,6 +96,7 @@ module.exports = {
   listSegment,
   listLifestyleGrup,
   upsertAltKategori,
+  syncRefTablesFromPlm,
   getSetting,
   setSetting,
   listSettings
