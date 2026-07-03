@@ -151,6 +151,24 @@ router.get('/ref/cluster', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/ref/kategori:
+ *   get:
+ *     summary: Kategori listesi (PLM SubCategory, GLrefId 65) — Ön Adet Parametreleri için
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/kategori', async (req, res) => {
+  try {
+    res.json(await refService.listKategori());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/ref/alt-kategori', async (req, res) => {
   try {
     const { altKategoriId, ad } = req.body;

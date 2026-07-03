@@ -4,9 +4,9 @@ const onAdetParameterService = require('../services/onAdetParameterService');
 const importExportService = require('../services/onAdetImportExportService');
 
 function validateBody(body) {
-  const { markaId, bolumId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode, adet } = body;
-  if ([markaId, bolumId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode, adet].some((v) => v === undefined || v === null || v === '')) {
-    return 'markaId, bolumId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode ve adet zorunludur.';
+  const { markaId, bolumId, kategoriId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode, adet } = body;
+  if ([markaId, bolumId, kategoriId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode, adet].some((v) => v === undefined || v === null || v === '')) {
+    return 'markaId, bolumId, kategoriId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode ve adet zorunludur.';
   }
   if (!Number.isInteger(Number(adet))) {
     return 'adet tam sayı olmalıdır.';
@@ -26,8 +26,8 @@ function validateBody(body) {
  */
 router.get('/on-adet-parametreleri', async (req, res) => {
   try {
-    const { markaId, bolumId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode } = req.query;
-    const rows = await onAdetParameterService.listParameters({ markaId, bolumId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode });
+    const { markaId, bolumId, kategoriId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode } = req.query;
+    const rows = await onAdetParameterService.listParameters({ markaId, bolumId, kategoriId, altKategoriId, clusterCode, lifestyleGrupId, sezonId, altSezonCode });
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -127,7 +127,7 @@ router.post('/on-adet-parametreleri', async (req, res) => {
 
     const existing = await onAdetParameterService.findByKey(req.body);
     if (existing) {
-      return res.status(409).json({ error: 'Bu marka/bölüm/alt kategori/cluster/lifestyle grup/sezon/alt sezon kombinasyonu zaten mevcut.', existingId: existing.id });
+      return res.status(409).json({ error: 'Bu marka/bölüm/kategori/alt kategori/cluster/lifestyle grup/sezon/alt sezon kombinasyonu zaten mevcut.', existingId: existing.id });
     }
 
     const created = await onAdetParameterService.createParameter(req.body, req.body.updatedBy);

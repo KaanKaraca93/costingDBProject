@@ -15,6 +15,7 @@ const ADET_MAX = 100000;
 const COLUMN_DEFS = [
   { key: 'marka', header: 'Marka', width: 22, kind: 'lookup', refKey: 'marka', idKey: 'marka_id', displayField: 'marka_ad', resolvedKey: 'markaId', namedRange: 'ListMarka' },
   { key: 'bolum', header: 'Bölüm', width: 20, kind: 'lookup', refKey: 'bolum', idKey: 'bolum_id', displayField: 'bolum_ad', resolvedKey: 'bolumId', namedRange: 'ListBolum' },
+  { key: 'kategori', header: 'Kategori', width: 22, kind: 'lookup', refKey: 'kategori', idKey: 'kategori_id', displayField: 'kategori_ad', resolvedKey: 'kategoriId', namedRange: 'ListKategori' },
   { key: 'altKategori', header: 'Alt Kategori', width: 24, kind: 'lookup', refKey: 'altKategori', idKey: 'alt_kategori_id', displayField: 'alt_kategori_ad', resolvedKey: 'altKategoriId', namedRange: 'ListAltKategori' },
   { key: 'cluster', header: 'Cluster', width: 14, kind: 'lookup', refKey: 'cluster', idKey: 'cluster_code', displayField: 'cluster_ad', resolvedKey: 'clusterCode', namedRange: 'ListCluster' },
   { key: 'lifestyleGrup', header: 'LifeStyle Grubu', width: 22, kind: 'lookup', refKey: 'lifestyleGrup', idKey: 'lifestyle_grup_id', displayField: 'lifestyle_grup_ad', resolvedKey: 'lifestyleGrupId', namedRange: 'ListLifestyleGrup' },
@@ -201,6 +202,7 @@ function validateSheetRows(sheet, refs, existingRows) {
       rowNumber,
       marka: display.marka,
       bolum: display.bolum,
+      kategori: display.kategori,
       altKategori: display.altKategori,
       cluster: display.cluster,
       lifestyleGrup: display.lifestyleGrup,
@@ -223,16 +225,17 @@ function validateSheetRows(sheet, refs, existingRows) {
 }
 
 async function fetchAllRefs() {
-  const [marka, bolum, altKategori, cluster, lifestyleGrup, sezon, altSezon] = await Promise.all([
+  const [marka, bolum, kategori, altKategori, cluster, lifestyleGrup, sezon, altSezon] = await Promise.all([
     refService.listMarka(),
     refService.listBolum(),
+    refService.listKategori(),
     refService.listAltKategori(),
     refService.listCluster(),
     refService.listLifestyleGrup(),
     refService.listSezon(),
     refService.listAltSezon()
   ]);
-  return { marka, bolum, altKategori, cluster, lifestyleGrup, sezon, altSezon };
+  return { marka, bolum, kategori, altKategori, cluster, lifestyleGrup, sezon, altSezon };
 }
 
 async function buildTemplateWorkbookFromDb() {

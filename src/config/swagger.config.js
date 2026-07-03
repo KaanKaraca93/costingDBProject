@@ -58,11 +58,12 @@ ise PLM Theme_Attributes entity'sinin sabit valueset'inden çeker.
         },
         OnAdetParameterInput: {
           type: 'object',
-          required: ['markaId', 'bolumId', 'altKategoriId', 'clusterCode', 'lifestyleGrupId', 'sezonId', 'altSezonCode', 'adet'],
+          required: ['markaId', 'bolumId', 'kategoriId', 'altKategoriId', 'clusterCode', 'lifestyleGrupId', 'sezonId', 'altSezonCode', 'adet'],
           properties: {
             markaId: { type: 'integer', example: 4 },
             bolumId: { type: 'integer', example: 6 },
-            altKategoriId: { type: 'integer', example: 100 },
+            kategoriId: { type: 'integer', example: 20 },
+            altKategoriId: { type: 'integer', example: 56 },
             clusterCode: { type: 'string', example: '013' },
             lifestyleGrupId: { type: 'integer', example: 8 },
             sezonId: { type: 'integer', example: 12 },

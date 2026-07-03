@@ -103,6 +103,14 @@ CREATE TABLE IF NOT EXISTS ref_cluster (
     ad              TEXT NOT NULL
 );
 
+-- Kategori = PLM SubCategoryId (GLrefId 65). Ön yüzde "Kategori", arkada SubCategoryId.
+-- Ön Adet fallback'inde Alt Kategori (ProductSubSubCategoryId) eşleşmezse bir üst
+-- seviye olarak bu SubCategory kırılımına bakılır.
+CREATE TABLE IF NOT EXISTS ref_kategori (
+    kategori_id INTEGER PRIMARY KEY,
+    ad          TEXT NOT NULL
+);
+
 -- ─────────────────────────────────────────────────────────────────────────
 -- Ön Adet Parametreleri: Marka + Bölüm + Alt Kategori + Cluster + LifeStyle
 -- Grubu + Sezon + Alt Sezon kırılımına göre "Adet" (tam sayı) değeri.
@@ -113,6 +121,7 @@ CREATE TABLE IF NOT EXISTS on_adet_parametreleri (
     id                  SERIAL PRIMARY KEY,
     marka_id            INTEGER NOT NULL,
     bolum_id            INTEGER NOT NULL,
+    kategori_id         INTEGER NOT NULL,
     alt_kategori_id     INTEGER NOT NULL,
     cluster_code        TEXT NOT NULL,
     lifestyle_grup_id   INTEGER NOT NULL,
@@ -122,5 +131,33 @@ CREATE TABLE IF NOT EXISTS on_adet_parametreleri (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_by          TEXT,
-    UNIQUE (marka_id, bolum_id, alt_kategori_id, cluster_code, lifestyle_grup_id, sezon_id, alt_sezon_code)
+    CONSTRAINT on_adet_parametreleri_unique_kirilim
+        UNIQUE (marka_id, bolum_id, kategori_id, alt_kategori_id, cluster_code, lifestyle_grup_id, sezon_id, alt_sezon_code)
 );
+
+-- Kategori (SubCategory) sonradan eklenen bir boyut; daha önce deploy edilmiş
+-- (boş) tabloya da eklensin ve UNIQUE constraint kategori_id'yi içerecek şekilde
+-- yeniden kurulsun. Blok idempotenttir (her deploy'da migrate.js çalışır).
+ALTER TABLE on_adet_parametreleri ADD COLUMN IF NOT EXISTS kategori_id INTEGER;
+
+DO $$
+DECLARE
+    c TEXT;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'on_adet_parametreleri'
+          AND constraint_name = 'on_adet_parametreleri_unique_kirilim'
+    ) THEN
+        FOR c IN
+            SELECT constraint_name FROM information_schema.table_constraints
+            WHERE table_name = 'on_adet_parametreleri' AND constraint_type = 'UNIQUE'
+        LOOP
+            EXECUTE format('ALTER TABLE on_adet_parametreleri DROP CONSTRAINT %I', c);
+        END LOOP;
+
+        EXECUTE 'ALTER TABLE on_adet_parametreleri
+            ADD CONSTRAINT on_adet_parametreleri_unique_kirilim
+            UNIQUE (marka_id, bolum_id, kategori_id, alt_kategori_id, cluster_code, lifestyle_grup_id, sezon_id, alt_sezon_code)';
+    END IF;
+END $$;

@@ -40,6 +40,11 @@ async function listCluster() {
   return rows;
 }
 
+async function listKategori() {
+  const { rows } = await pool.query('SELECT kategori_id, ad FROM ref_kategori ORDER BY ad');
+  return rows;
+}
+
 async function upsertAltKategori(altKategoriId, ad) {
   await pool.query(
     `INSERT INTO ref_alt_kategori (alt_kategori_id, ad) VALUES ($1, $2)
@@ -56,7 +61,8 @@ const REF_TABLE_CONFIG = {
   sezon: { table: 'ref_sezon', idColumn: 'sezon_id' },
   altSezon: { table: 'ref_alt_sezon', idColumn: 'alt_sezon_code' },
   bolum: { table: 'ref_bolum', idColumn: 'bolum_id' },
-  cluster: { table: 'ref_cluster', idColumn: 'cluster_code' }
+  cluster: { table: 'ref_cluster', idColumn: 'cluster_code' },
+  kategori: { table: 'ref_kategori', idColumn: 'kategori_id' }
 };
 
 async function upsertRefItems(type, items) {
@@ -123,6 +129,7 @@ module.exports = {
   listAltSezon,
   listBolum,
   listCluster,
+  listKategori,
   upsertAltKategori,
   syncRefTablesFromPlm,
   getSetting,
