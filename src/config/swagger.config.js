@@ -35,6 +35,7 @@ ise PLM Theme_Attributes entity'sinin sabit valueset'inden çeker.
     ],
     tags: [
       { name: 'Parametreler', description: 'MU/Sarf kırılım kayıtları (CRUD) ve PLM çözümleme uç noktası' },
+      { name: 'Ön Adet Parametreleri', description: 'Marka/Bölüm/Alt Kategori/Cluster/LifeStyle Grubu/Sezon/Alt Sezon kırılımına göre Adet kayıtları (CRUD)' },
       { name: 'Referans Veriler', description: 'Dropdown isim listeleri ve PLM senkronizasyonu' },
       { name: 'Ayarlar', description: 'Kırılıma bağlı olmayan global ayarlar (kdv_orani vb.)' },
       { name: 'Token', description: 'PLM/ION OAuth2.0 token yönetimi (tanı/entegrasyon amaçlı)' }
@@ -53,6 +54,20 @@ ise PLM Theme_Attributes entity'sinin sabit valueset'inden çeker.
             altSezonCode: { type: 'string', example: 'FW1' },
             mu: { type: 'number', example: 4.94 },
             sarf: { type: 'number', example: 1.5 }
+          }
+        },
+        OnAdetParameterInput: {
+          type: 'object',
+          required: ['markaId', 'bolumId', 'altKategoriId', 'clusterCode', 'lifestyleGrupId', 'sezonId', 'altSezonCode', 'adet'],
+          properties: {
+            markaId: { type: 'integer', example: 4 },
+            bolumId: { type: 'integer', example: 6 },
+            altKategoriId: { type: 'integer', example: 100 },
+            clusterCode: { type: 'string', example: '013' },
+            lifestyleGrupId: { type: 'integer', example: 8 },
+            sezonId: { type: 'integer', example: 12 },
+            altSezonCode: { type: 'string', example: 'FW1' },
+            adet: { type: 'integer', example: 250 }
           }
         },
         TokenResponse: {

@@ -35,6 +35,28 @@ INSERT INTO ref_alt_sezon (alt_sezon_code, ad) VALUES
     ('SS4', 'SS4')
 ON CONFLICT (alt_sezon_code) DO NOTHING;
 
+-- Bölüm ve Cluster, canlı doğrulanmış PLM verileriyle önceden seed edilir (ilk kullanımda
+-- boş dropdown sürprizi olmasın); yine de PLM'de değişiklik olursa sync-from-plm ile
+-- güncellenebilir.
+INSERT INTO ref_bolum (bolum_id, ad) VALUES
+    (4, 'ACCESSORY'),
+    (5, 'SHOES'),
+    (6, 'TEKSTIL'),
+    (7, 'KOZMETIK'),
+    (8, 'PLAJ URUNLERI'),
+    (9, 'HEDIYE KUTUSU'),
+    (10, 'SET URUN')
+ON CONFLICT (bolum_id) DO NOTHING;
+
+INSERT INTO ref_cluster (cluster_code, ad) VALUES
+    ('008', 'Diğer'),
+    ('013', 'B'),
+    ('015', 'D'),
+    ('016', 'E'),
+    ('017', 'F'),
+    ('018', 'G')
+ON CONFLICT (cluster_code) DO NOTHING;
+
 -- Global ayar: KDV oranı (spec Bölüm 4)
 INSERT INTO app_settings (key, value) VALUES
     ('kdv_orani', '0.10')

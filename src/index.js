@@ -6,6 +6,7 @@ const swaggerUi = require('swagger-ui-express');
 
 const swaggerSpec = require('./config/swagger.config');
 const parameterRoutes = require('./routes/parameter.routes');
+const onAdetParameterRoutes = require('./routes/onAdetParameter.routes');
 const refRoutes = require('./routes/ref.routes');
 const tokenRoutes = require('./routes/token.routes');
 
@@ -22,6 +23,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 // Bu uygulamaya erişim PLM widget'ı üzerinden sağlanacağı için ayrı bir
 // kullanıcı girişi/oturum katmanı bulunmuyor (bkz. proje notları).
 app.use('/api', parameterRoutes);
+app.use('/api', onAdetParameterRoutes);
 app.use('/api', refRoutes);
 app.use('/api', tokenRoutes);
 

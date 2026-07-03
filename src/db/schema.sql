@@ -89,3 +89,38 @@ CREATE TABLE IF NOT EXISTS ref_alt_sezon (
     alt_sezon_code  TEXT PRIMARY KEY,
     ad              TEXT NOT NULL
 );
+
+-- "Ön Adet Parametreleri" tablosu için ek referanslar
+CREATE TABLE IF NOT EXISTS ref_bolum (
+    bolum_id    INTEGER PRIMARY KEY,
+    ad          TEXT NOT NULL
+);
+
+-- Cluster de Alt Sezon gibi bir Theme_Attributes valueset'i; anahtarı (kod) metin
+-- (örn. "013"), gösterim ismi farklıdır (örn. "B").
+CREATE TABLE IF NOT EXISTS ref_cluster (
+    cluster_code    TEXT PRIMARY KEY,
+    ad              TEXT NOT NULL
+);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Ön Adet Parametreleri: Marka + Bölüm + Alt Kategori + Cluster + LifeStyle
+-- Grubu + Sezon + Alt Sezon kırılımına göre "Adet" (tam sayı) değeri.
+-- decision_parameters ile aynı yönetim mantığı (CRUD + Excel içe/dışa aktarma),
+-- farklı bir kırılım ve tek bir sayısal değer alanı.
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS on_adet_parametreleri (
+    id                  SERIAL PRIMARY KEY,
+    marka_id            INTEGER NOT NULL,
+    bolum_id            INTEGER NOT NULL,
+    alt_kategori_id     INTEGER NOT NULL,
+    cluster_code        TEXT NOT NULL,
+    lifestyle_grup_id   INTEGER NOT NULL,
+    sezon_id            INTEGER NOT NULL,
+    alt_sezon_code      TEXT NOT NULL,
+    adet                INTEGER NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_by          TEXT,
+    UNIQUE (marka_id, bolum_id, alt_kategori_id, cluster_code, lifestyle_grup_id, sezon_id, alt_sezon_code)
+);

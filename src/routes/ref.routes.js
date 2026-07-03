@@ -115,6 +115,42 @@ router.get('/ref/alt-sezon', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/ref/bolum:
+ *   get:
+ *     summary: Bölüm listesi (PLM GLrefId 90) — Ön Adet Parametreleri için
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/bolum', async (req, res) => {
+  try {
+    res.json(await refService.listBolum());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/ref/cluster:
+ *   get:
+ *     summary: Cluster listesi (PLM Theme_Attributes entity'sinin Cluster valueset'i) — Ön Adet Parametreleri için
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/cluster', async (req, res) => {
+  try {
+    res.json(await refService.listCluster());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/ref/alt-kategori', async (req, res) => {
   try {
     const { altKategoriId, ad } = req.body;
@@ -149,11 +185,12 @@ router.post('/ref/alt-kategori', async (req, res) => {
  */
 router.post('/ref/sync-from-plm', async (req, res) => {
   try {
-    const [lookups, altSezon] = await Promise.all([
+    const [lookups, altSezon, cluster] = await Promise.all([
       plmLookupService.fetchAllLookups(),
-      plmThemeAttributeService.fetchAltSezonValueset()
+      plmThemeAttributeService.fetchAltSezonValueset(),
+      plmThemeAttributeService.fetchClusterValueset()
     ]);
-    const result = await refService.syncRefTablesFromPlm({ ...lookups, altSezon });
+    const result = await refService.syncRefTablesFromPlm({ ...lookups, altSezon, cluster });
     res.json({ success: true, synced: result });
   } catch (err) {
     res.status(500).json({ error: err.message });

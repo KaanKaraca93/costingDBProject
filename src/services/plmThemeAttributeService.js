@@ -37,4 +37,8 @@ async function fetchAltSezonValueset() {
   return fetchEntityAttributeValueset('Theme_Attributes', 'Alt_Sezon');
 }
 
-module.exports = { fetchEntityAttributeValueset, fetchAltSezonValueset };
+async function fetchClusterValueset() {
+  return fetchEntityAttributeValueset('Theme_Attributes', 'Cluster');
+}
+
+module.exports = { fetchEntityAttributeValueset, fetchAltSezonValueset, fetchClusterValueset };
