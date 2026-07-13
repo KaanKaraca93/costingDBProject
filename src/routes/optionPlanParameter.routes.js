@@ -9,15 +9,16 @@ function f(body, camel, snake) {
   return v === undefined || v === '' ? null : v;
 }
 
+// Opsiyon Kodu sistem tarafından otomatik üretilir; kullanıcı/Excel girmez.
 function validateBody(body) {
   const required = [
-    ['opsiyonKodu', 'opsiyon_kodu'], ['brandId', 'brand_id'],
+    ['brandId', 'brand_id'],
     ['subCategoryId', 'sub_category_id'], ['subSubCategoryId', 'sub_sub_category_id'],
     ['seasonId', 'season_id']
   ];
   for (const [camel, snake] of required) {
     if (f(body, camel, snake) == null) {
-      return 'opsiyonKodu, brandId, subCategoryId, subSubCategoryId ve seasonId zorunludur.';
+      return 'brandId, subCategoryId, subSubCategoryId ve seasonId zorunludur.';
     }
   }
   const ints = [['brandId', 'brand_id'], ['subCategoryId', 'sub_category_id'], ['subSubCategoryId', 'sub_sub_category_id'], ['seasonId', 'season_id']];
@@ -82,19 +83,17 @@ router.post('/option-plan-parametreleri/import/commit', async (req, res) => {
     if (!Array.isArray(rows) || rows.length === 0) {
       return res.status(400).json({ error: 'İçe aktarılacak satır bulunamadı.' });
     }
-    let inserted = 0, updated = 0;
+    // Her satır yeni bir placeholder'dır; Opsiyon Kodu otomatik/sıralı üretilir.
     const failed = [];
+    const valid = [];
     for (const row of rows) {
-      try {
-        const error = validateBody(row);
-        if (error) throw new Error(error);
-        const result = await service.upsertParameter(row, updatedBy);
-        if (result.inserted) inserted++; else updated++;
-      } catch (err) {
-        failed.push({ row, error: err.message });
-      }
+      const error = validateBody(row);
+      if (error) failed.push({ row, error });
+      else valid.push(row);
     }
-    res.json({ success: failed.length === 0, inserted, updated, failed });
+    const result = await service.createMany(valid, updatedBy);
+    failed.push(...result.failed);
+    res.json({ success: failed.length === 0, inserted: result.inserted, updated: 0, failed });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -114,11 +113,7 @@ router.post('/option-plan-parametreleri', async (req, res) => {
   try {
     const error = validateBody(req.body);
     if (error) return res.status(400).json({ error });
-    const opsiyonKodu = f(req.body, 'opsiyonKodu', 'opsiyon_kodu');
-    const existing = await service.findByOpsiyonKodu(opsiyonKodu);
-    if (existing) {
-      return res.status(409).json({ error: `Bu Opsiyon Kodu zaten mevcut: ${opsiyonKodu}`, existingId: existing.id });
-    }
+    // Opsiyon Kodu gövdede yoksa serviste otomatik üretilir.
     const created = await service.createParameter(req.body, f(req.body, 'updatedBy', 'updated_by'));
     res.status(201).json(created);
   } catch (err) {

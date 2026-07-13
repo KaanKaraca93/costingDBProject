@@ -111,6 +111,32 @@ CREATE TABLE IF NOT EXISTS ref_kategori (
     ad          TEXT NOT NULL
 );
 
+-- Option Plan (v6.2) için ek PLM lookup'ları (GenericLookUpAll GlValId anahtarlı):
+--   Fashion Pyramid = CUD1 = GlRefId 224
+--   Koleksiyon Tipi = CUD5 = GlRefId 228  (Excel'de "FT" başlığıyla geçiyordu)
+-- (Life Style Grup = CUD4 = GlRefId 227 zaten ref_lifestyle_grup ile karşılanır.)
+CREATE TABLE IF NOT EXISTS ref_fashion_pyramid (
+    id  INTEGER PRIMARY KEY,
+    ad  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ref_koleksiyon_tipi (
+    id  INTEGER PRIMARY KEY,
+    ad  TEXT NOT NULL
+);
+
+-- Range Plan (v7.2) "Range Detayı" değerleri: PLM ExtendedFieldDropDown.
+-- Anahtar (DropDownValue) = ExtFldDropDownId (global unique). ext_fld_id, hangi
+-- Extended Field'a (Range) ait olduğunu belirtir; aynı isim (ad) farklı
+-- ext_fld_id altında tekrar edebilir, bu yüzden çözümleme (ext_fld_id, ad) ile yapılır.
+CREATE TABLE IF NOT EXISTS ref_ext_field_dropdown (
+    ext_fld_dropdown_id INTEGER PRIMARY KEY,
+    ext_fld_id          TEXT NOT NULL,
+    ad                  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ref_ext_field_dropdown_extfld_idx
+    ON ref_ext_field_dropdown (ext_fld_id);
+
 -- ─────────────────────────────────────────────────────────────────────────
 -- Ön Adet Parametreleri: Marka + Bölüm + Alt Kategori + Cluster + LifeStyle
 -- Grubu + Sezon + Alt Sezon kırılımına göre "Adet" (tam sayı) değeri.

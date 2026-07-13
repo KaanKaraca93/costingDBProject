@@ -32,8 +32,9 @@ Uygulama varsayılan olarak `http://localhost:3000` üzerinde çalışır.
 |---|---|
 | `decision_parameters` | Marka + Alt Kategori + Segment + LifeStyle Grubu + Sezon + Alt Sezon kırılımına göre MU/Sarf değerleri (unique constraint ile korunur) |
 | `on_adet_parametreleri` | Marka + Bölüm + Kategori + Alt Kategori + Cluster + LifeStyle Grubu + Sezon + Alt Sezon kırılımına göre Adet değeri |
-| `option_plan_parametreleri` | **RangeSayac v6.2** plan kaynağı (eski `RangeSayacv6_2.xlsx`). Her satır planlanan bir opsiyon (Opsiyon Kodu = PH####). Eşleştirme ID kolonlarıyla yapılır. |
-| `range_plan_parametreleri` | **RangeSayac v7.2** plan kaynağı (eski `Rangesayacv7_2.xlsx`). Range detay/dropdown planı + `Option Say`. Anahtar RangeSayac `makeKey` ile aynı. |
+| `option_plan_parametreleri` | **RangeSayac v6.2** plan kaynağı (eski `RangeSayacv6_2.xlsx`). Her satır planlanan bir opsiyon; **Opsiyon Kodu (PH####) sistem tarafından otomatik/sıralı üretilir** (kullanıcı/Excel girmez). Boyutlar PLM lookup'larından çözümlenir: Marka(1)/Ürün Grubu=SubCategory(65)/Ürün Alt Grup=SubSubCategory(69)/Fashion Pyramid=CUD1(224)/Life Style Grup=CUD4(227)/Koleksiyon Tipi=CUD5(228)/Segment(232)/Sezon(58)/Alt Sezon. |
+| `range_plan_parametreleri` | **RangeSayac v7.2** plan kaynağı (eski `Rangesayacv7_2.xlsx`). Range detay/dropdown planı + `Option Say`. `Range`=Extended Field adı → sabit `ExtFldId`; `Range Detayı`=PLM `ExtendedFieldDropDown` değeri → `DropDownValue` (=ExtFldDropDownId), `(ExtFldId + Name)` çifti ile çözümlenir. Anahtar RangeSayac `makeKey` ile aynı. |
+| `ref_fashion_pyramid` / `ref_koleksiyon_tipi` / `ref_ext_field_dropdown` | Option/Range plan dropdown kaynakları; `POST /api/ref/sync-from-plm` ile PLM'den doldurulur. |
 | `app_settings` | Kırılıma göre değişmeyen global ayarlar (örn. `kdv_orani`, fallback değerleri) |
 
 ### Range/Option plan API'leri (RangeSayac entegrasyonu)

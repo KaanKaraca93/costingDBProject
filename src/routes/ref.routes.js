@@ -169,6 +169,78 @@ router.get('/ref/kategori', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/ref/fashion-pyramid:
+ *   get:
+ *     summary: Fashion Pyramid listesi (PLM GLrefId 224 / CUD1) — Option Plan için
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/fashion-pyramid', async (req, res) => {
+  try {
+    res.json(await refService.listFashionPyramid());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/ref/koleksiyon-tipi:
+ *   get:
+ *     summary: Koleksiyon Tipi listesi (PLM GLrefId 228 / CUD5, Excel'de "FT") — Option Plan için
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/koleksiyon-tipi', async (req, res) => {
+  try {
+    res.json(await refService.listKoleksiyonTipi());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/ref/ext-field-dropdown:
+ *   get:
+ *     summary: >
+ *       Range Detayı değerleri (PLM ExtendedFieldDropDown) — Range Plan için.
+ *       ext_fld_dropdown_id (DropDownValue) DB anahtarıdır; ext_fld_id hangi
+ *       Range'e ait olduğunu belirtir; ad ön yüzde gösterilir.
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/ext-field-dropdown', async (req, res) => {
+  try {
+    res.json(await refService.listExtFieldDropDown());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/ref/range-fields:
+ *   get:
+ *     summary: Range Plan için sabit tanımlar (Range<->ExtFldId eşleşmesi, RangeTag ve Life Style Grup listeleri)
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/range-fields', (req, res) => {
+  const { RANGE_FIELDS, RANGE_TAGS, RANGE_LIFESTYLE_GROUPS } = require('../config/rangeFields');
+  res.json({ ranges: RANGE_FIELDS, rangeTags: RANGE_TAGS, lifeStyleGroups: RANGE_LIFESTYLE_GROUPS });
+});
+
 router.post('/ref/alt-kategori', async (req, res) => {
   try {
     const { altKategoriId, ad } = req.body;
@@ -203,12 +275,14 @@ router.post('/ref/alt-kategori', async (req, res) => {
  */
 router.post('/ref/sync-from-plm', async (req, res) => {
   try {
-    const [lookups, altSezon, cluster] = await Promise.all([
+    const [lookups, altSezon, cluster, extFieldDropDown] = await Promise.all([
       plmLookupService.fetchAllLookups(),
       plmThemeAttributeService.fetchAltSezonValueset(),
-      plmThemeAttributeService.fetchClusterValueset()
+      plmThemeAttributeService.fetchClusterValueset(),
+      plmLookupService.fetchExtendedFieldDropDown()
     ]);
     const result = await refService.syncRefTablesFromPlm({ ...lookups, altSezon, cluster });
+    result.extFieldDropDown = await refService.upsertExtFieldDropDown(extFieldDropDown);
     res.json({ success: true, synced: result });
   } catch (err) {
     res.status(500).json({ error: err.message });

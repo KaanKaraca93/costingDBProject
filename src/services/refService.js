@@ -45,6 +45,23 @@ async function listKategori() {
   return rows;
 }
 
+async function listFashionPyramid() {
+  const { rows } = await pool.query('SELECT id, ad FROM ref_fashion_pyramid ORDER BY ad');
+  return rows;
+}
+
+async function listKoleksiyonTipi() {
+  const { rows } = await pool.query('SELECT id, ad FROM ref_koleksiyon_tipi ORDER BY ad');
+  return rows;
+}
+
+async function listExtFieldDropDown() {
+  const { rows } = await pool.query(
+    'SELECT ext_fld_dropdown_id, ext_fld_id, ad FROM ref_ext_field_dropdown ORDER BY ext_fld_id, ad'
+  );
+  return rows;
+}
+
 async function upsertAltKategori(altKategoriId, ad) {
   await pool.query(
     `INSERT INTO ref_alt_kategori (alt_kategori_id, ad) VALUES ($1, $2)
@@ -62,7 +79,9 @@ const REF_TABLE_CONFIG = {
   altSezon: { table: 'ref_alt_sezon', idColumn: 'alt_sezon_code' },
   bolum: { table: 'ref_bolum', idColumn: 'bolum_id' },
   cluster: { table: 'ref_cluster', idColumn: 'cluster_code' },
-  kategori: { table: 'ref_kategori', idColumn: 'kategori_id' }
+  kategori: { table: 'ref_kategori', idColumn: 'kategori_id' },
+  fashionPyramid: { table: 'ref_fashion_pyramid', idColumn: 'id' },
+  koleksiyonTipi: { table: 'ref_koleksiyon_tipi', idColumn: 'id' }
 };
 
 async function upsertRefItems(type, items) {
@@ -102,6 +121,31 @@ async function syncRefTablesFromPlm(lookups) {
   return result;
 }
 
+// ExtendedFieldDropDown farklı şemalı (ext_fld_dropdown_id, ext_fld_id, ad);
+// generic upsertRefItems'e uymaz, ayrı ele alınır.
+async function upsertExtFieldDropDown(items) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const item of items || []) {
+      await client.query(
+        `INSERT INTO ref_ext_field_dropdown (ext_fld_dropdown_id, ext_fld_id, ad)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (ext_fld_dropdown_id)
+         DO UPDATE SET ext_fld_id = EXCLUDED.ext_fld_id, ad = EXCLUDED.ad`,
+        [item.id, item.extFldId, item.name]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return (items || []).length;
+}
+
 async function getSetting(key) {
   const { rows } = await pool.query('SELECT value FROM app_settings WHERE key = $1', [key]);
   return rows[0] ? rows[0].value : null;
@@ -130,8 +174,12 @@ module.exports = {
   listBolum,
   listCluster,
   listKategori,
+  listFashionPyramid,
+  listKoleksiyonTipi,
+  listExtFieldDropDown,
   upsertAltKategori,
   syncRefTablesFromPlm,
+  upsertExtFieldDropDown,
   getSetting,
   setSetting,
   listSettings
