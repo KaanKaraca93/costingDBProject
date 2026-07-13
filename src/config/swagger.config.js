@@ -36,6 +36,8 @@ ise PLM Theme_Attributes entity'sinin sabit valueset'inden çeker.
     tags: [
       { name: 'Parametreler', description: 'MU/Sarf kırılım kayıtları (CRUD) ve PLM çözümleme uç noktası' },
       { name: 'Ön Adet Parametreleri', description: 'Marka/Bölüm/Alt Kategori/Cluster/LifeStyle Grubu/Sezon/Alt Sezon kırılımına göre Adet kayıtları (CRUD)' },
+      { name: 'Option Plan Parametreleri', description: 'RangeSayac v6.2 plan kaynağı (opsiyon placeholder listesi). CRUD + Excel + ?format=plan ile RangeSayacv6_2.xlsx kolon adları' },
+      { name: 'Range Plan Parametreleri', description: 'RangeSayac v7.2 plan kaynağı (range detay/dropdown planı). CRUD + Excel + ?format=plan ile Rangesayacv7_2.xlsx kolon adları' },
       { name: 'Referans Veriler', description: 'Dropdown isim listeleri ve PLM senkronizasyonu' },
       { name: 'Ayarlar', description: 'Kırılıma bağlı olmayan global ayarlar (kdv_orani vb.)' },
       { name: 'Token', description: 'PLM/ION OAuth2.0 token yönetimi (tanı/entegrasyon amaçlı)' }

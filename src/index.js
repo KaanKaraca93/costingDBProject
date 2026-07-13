@@ -7,6 +7,8 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger.config');
 const parameterRoutes = require('./routes/parameter.routes');
 const onAdetParameterRoutes = require('./routes/onAdetParameter.routes');
+const optionPlanParameterRoutes = require('./routes/optionPlanParameter.routes');
+const rangePlanParameterRoutes = require('./routes/rangePlanParameter.routes');
 const refRoutes = require('./routes/ref.routes');
 const tokenRoutes = require('./routes/token.routes');
 
@@ -24,6 +26,8 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 // kullanıcı girişi/oturum katmanı bulunmuyor (bkz. proje notları).
 app.use('/api', parameterRoutes);
 app.use('/api', onAdetParameterRoutes);
+app.use('/api', optionPlanParameterRoutes);
+app.use('/api', rangePlanParameterRoutes);
 app.use('/api', refRoutes);
 app.use('/api', tokenRoutes);
 

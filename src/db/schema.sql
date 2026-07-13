@@ -161,3 +161,75 @@ BEGIN
             UNIQUE (marka_id, bolum_id, kategori_id, alt_kategori_id, cluster_code, lifestyle_grup_id, sezon_id, alt_sezon_code)';
     END IF;
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- OPTION PLAN PARAMETRELERI (kaynak: RangeSayacv6_2.xlsx)
+-- IpekyolRangeSayac "Range Count Source V6.2" servisinin placeholder/plan
+-- kaynağı. Her satır planlanan bir opsiyon (placeholder) demektir; aynı
+-- kırılımdaki satır sayısı = o kırılımın planlanan opsiyon adedi. Bu yüzden
+-- kırılım UNIQUE DEĞİLDİR; satır kimliği "Opsiyon Kodu"dur (PH####).
+-- Eşleştirme ID kolonlarıyla yapılır (brand_id, sub_category_id,
+-- sub_sub_category_id, cud1, cud4, cud5, udf5_id, season_id, alt_sezon);
+-- isim (metin) kolonları yalnızca çıktı/etikettir. Excel'deki hem ID hem
+-- isim kolonlarına bire bir sadık kalınır.
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS option_plan_parametreleri (
+    id                  SERIAL PRIMARY KEY,
+    opsiyon_kodu        TEXT NOT NULL,
+    marka               TEXT,               -- MARKA (etiket)
+    brand_id            INTEGER NOT NULL,   -- BrandId
+    urun_grubu          TEXT,               -- ÜRÜN GRUBU (etiket)
+    sub_category_id     INTEGER NOT NULL,   -- SubCategoryId (Kategori)
+    urun_alt_grup       TEXT,               -- Ürün Alt Grup (etiket)
+    sub_sub_category_id INTEGER NOT NULL,   -- SubSubCategoryId (Alt Kategori)
+    fashion_pyramid     TEXT,               -- Fashion Pyramid (etiket)
+    cud1                INTEGER,            -- CUD1 (Fashion Pyramid id / ColorwayUserField1)
+    life_style_grup     TEXT,               -- Life Style Grup (etiket)
+    cud4                INTEGER,            -- CUD4 (ColorwayUserDefinedField4 id)
+    ft                  TEXT,               -- FT (etiket)
+    cud5                INTEGER,            -- CUD5 (ColorwayUserDefinedField5 id)
+    segment             TEXT,               -- Segment (etiket)
+    udf5_id             INTEGER,            -- UDF5Id (UserDefinedField5 id)
+    season_id           INTEGER NOT NULL,   -- SeasonId
+    alt_sezon           TEXT,               -- Alt_Sezon (metin, örn. "SS1")
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_by          TEXT,
+    CONSTRAINT option_plan_parametreleri_opsiyon_kodu_key UNIQUE (opsiyon_kodu)
+);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- RANGE PLAN PARAMETRELERI (kaynak: Rangesayacv7_2.xlsx)
+-- IpekyolRangeSayac "PLM Range V7.2" servisinin plan kaynağı. Her satır bir
+-- (range detay / dropdown değeri) kırılımı + planlanan "Option Say" adedidir.
+-- Eşleştirme anahtarı makeKey ile aynıdır:
+--   (brand_id, sub_category_id, ext_fld_id, drop_down_value, cud5_id,
+--    season_id, alt_sezon, life_style_grup)
+-- NULL alanların anahtarda tutarlı davranması için COALESCE'li UNIQUE index.
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS range_plan_parametreleri (
+    id                  SERIAL PRIMARY KEY,
+    marka               TEXT,               -- Marka (etiket)
+    brand_id            INTEGER NOT NULL,   -- BrandId
+    urun_grubu          TEXT,               -- Ürün Gurbu (etiket)
+    sub_category_id     INTEGER NOT NULL,   -- SubCategoryId
+    range_tag           TEXT,               -- RangeTag
+    range_ad            TEXT,               -- Range
+    ext_fld_id          TEXT NOT NULL,      -- ExtFldId (GUID)
+    range_detayi        TEXT,               -- Range Detayı
+    drop_down_value     INTEGER NOT NULL,   -- DropDownValue
+    cud5_id             INTEGER,            -- CUD5Id
+    option_say          INTEGER NOT NULL DEFAULT 0, -- Option Say (planlanan adet)
+    season_id           INTEGER NOT NULL,   -- SeasonId
+    alt_sezon           TEXT,               -- Alt_Sezon
+    life_style_grup     TEXT,               -- Life Style Grup (grup: Mono/Business/Tema/Diğer)
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_by          TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS range_plan_parametreleri_key
+    ON range_plan_parametreleri (
+        brand_id, sub_category_id, ext_fld_id, drop_down_value,
+        COALESCE(cud5_id, -1), season_id, COALESCE(alt_sezon, ''), COALESCE(life_style_grup, '')
+    );

@@ -31,7 +31,29 @@ Uygulama varsayılan olarak `http://localhost:3000` üzerinde çalışır.
 | Tablo | Açıklama |
 |---|---|
 | `decision_parameters` | Marka + Alt Kategori + Segment + LifeStyle Grubu + Sezon + Alt Sezon kırılımına göre MU/Sarf değerleri (unique constraint ile korunur) |
+| `on_adet_parametreleri` | Marka + Bölüm + Kategori + Alt Kategori + Cluster + LifeStyle Grubu + Sezon + Alt Sezon kırılımına göre Adet değeri |
+| `option_plan_parametreleri` | **RangeSayac v6.2** plan kaynağı (eski `RangeSayacv6_2.xlsx`). Her satır planlanan bir opsiyon (Opsiyon Kodu = PH####). Eşleştirme ID kolonlarıyla yapılır. |
+| `range_plan_parametreleri` | **RangeSayac v7.2** plan kaynağı (eski `Rangesayacv7_2.xlsx`). Range detay/dropdown planı + `Option Say`. Anahtar RangeSayac `makeKey` ile aynı. |
 | `app_settings` | Kırılıma göre değişmeyen global ayarlar (örn. `kdv_orani`, fallback değerleri) |
+
+### Range/Option plan API'leri (RangeSayac entegrasyonu)
+
+Eski `IpekyolRangeSayac` servisleri planı Excel'den okuyordu; artık bu DB'den API ile
+okunacak. Her iki tablo için Ön Adet ile aynı prensipler geçerlidir (CRUD + Excel şablon +
+içe aktarma doğrula/uygula):
+
+| İşlem | Option Plan (v6.2) | Range Plan (v7.2) |
+|---|---|---|
+| Liste (DB satırları) | `GET /api/option-plan-parametreleri` | `GET /api/range-plan-parametreleri` |
+| **Plan çıktısı (Excel kolon adları)** | `GET /api/option-plan-parametreleri?format=plan` | `GET /api/range-plan-parametreleri?format=plan` |
+| Excel şablon | `GET .../template` | `GET .../template` |
+| İçe aktar (doğrula/uygula) | `POST .../import/validate` · `POST .../import/commit` | aynı |
+| CRUD | `POST/PUT/DELETE .../[:id]` | `POST/PUT/DELETE .../[:id]` |
+
+> `?format=plan` çıktısı, ilgili kaynak Excel'in (`RangeSayacv6_2.xlsx` /
+> `Rangesayacv7_2.xlsx`) kolon adlarıyla **bire bir** aynıdır. Böylece RangeSayac
+> tarafında `XLSX.readFile(...).sheet_to_json(...)` çağrısı, doğrudan bu API'den
+> `axios.get(...)` ile değiştirilebilir; eşleştirme mantığı aynen korunur.
 | `ref_marka`, `ref_alt_kategori`, `ref_segment`, `ref_lifestyle_grup`, `ref_sezon`, `ref_alt_sezon` | Dropdown'lar için isim/ID eşleştirme tabloları — **kullanıcı arayüzde her zaman ismi görür, ID'yi görmez**; ID sadece DB/entegrasyon tarafında tutulur. `ref_alt_sezon`'un anahtarı (`alt_sezon_code`) diğerlerinden farklı olarak **metin** kodudur (örn. "FW1"), çünkü kaynağı bir GenericLookUpAll lookup'ı değil, PLM Theme_Attributes entity'sinin sabit valueset'idir. |
 
 > **Not (geriye dönük uyumluluk):** `sezon_id` ve `alt_sezon_code` kolonları DB seviyesinde
