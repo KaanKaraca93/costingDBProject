@@ -86,6 +86,32 @@ güncellemede satırın `Opsiyon Kodu` (PH####) değeri korunur.
 Kolonlar artık sabit sıraya göre değil, **başlık satırındaki adlara göre**
 okunur; `ID` başlığı bulunmayan dosyada tüm satırlar eskisi gibi kırılıma göre
 eşleştirilir.
+
+### Range alanları (`RANGE_FIELDS`) — yeni alan ekleme
+
+`Range` kolonundaki seçenekler [`src/config/rangeFields.js`](./src/config/rangeFields.js)
+içinde `{ name, extFldId }` çifti olarak sabittir. `extFldId` DB'ye yazılan
+anahtar, `name` ise kullanıcının gördüğü / Excel'e yazdığı etikettir. Liste
+**iki yerde kopyalıdır** ve birlikte güncellenmelidir:
+
+1. `src/config/rangeFields.js` (bu repo)
+2. Widget içindeki `RANGE_FIELDS` sabiti (`karar_tablosu_widget.js`)
+
+`GET /api/ref/range-fields` bu listeyi zaten servis eder; widget ileride
+oradan besleyecek şekilde değiştirilirse ikinci kopya kaldırılabilir.
+
+Yeni alan eklendikten sonra **`POST /api/ref/sync-from-plm` çalıştırılmalıdır**
+("PLM'den Senkronize Et" butonu): `RANGE_EXT_FLD_IDS` `ExtendedFieldDropDown`
+sorgusunun `$filter`'ını kurar, yani yeni GUID eklenmeden o alanın "Range
+Detayı" değerleri `ref_ext_field_dropdown`'a hiç gelmez.
+
+> **Ürün grubuna göre daraltma yoktur.** Tekstil dışı ürünler için eklenen
+> alanlar (Özellik, Topuk Tipi, Range, Malzeme) da her Ürün Grubu için
+> listelenir; `sub_category_id` ile `ext_fld_id` arasında bir kısıt/FK yoktur.
+> Excel'de "Range Detayı" veri doğrulaması da tüm alanların değerlerinin
+> birleşimidir. Yanlış eşleşmeler yine de içe aktarmada yakalanır: sunucu
+> `(ExtFldId + Name)` çiftini doğrular ve "Range Detayı seçili Range altında
+> bulunamadı" hatası verir.
 | `ref_marka`, `ref_alt_kategori`, `ref_segment`, `ref_lifestyle_grup`, `ref_sezon`, `ref_alt_sezon` | Dropdown'lar için isim/ID eşleştirme tabloları — **kullanıcı arayüzde her zaman ismi görür, ID'yi görmez**; ID sadece DB/entegrasyon tarafında tutulur. `ref_alt_sezon`'un anahtarı (`alt_sezon_code`) diğerlerinden farklı olarak **metin** kodudur (örn. "FW1"), çünkü kaynağı bir GenericLookUpAll lookup'ı değil, PLM Theme_Attributes entity'sinin sabit valueset'idir. |
 
 > **Not (geriye dönük uyumluluk):** `sezon_id` ve `alt_sezon_code` kolonları DB seviyesinde
