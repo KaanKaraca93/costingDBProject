@@ -83,7 +83,8 @@ router.post('/option-plan-parametreleri/import/commit', async (req, res) => {
     if (!Array.isArray(rows) || rows.length === 0) {
       return res.status(400).json({ error: 'İçe aktarılacak satır bulunamadı.' });
     }
-    // Her satır yeni bir placeholder'dır; Opsiyon Kodu otomatik/sıralı üretilir.
+    // ID gelen satır güncellenir (Opsiyon Kodu korunur); ID'siz satır yeni
+    // placeholder'dır ve Opsiyon Kodu otomatik/sıralı üretilir.
     const failed = [];
     const valid = [];
     for (const row of rows) {
@@ -91,9 +92,9 @@ router.post('/option-plan-parametreleri/import/commit', async (req, res) => {
       if (error) failed.push({ row, error });
       else valid.push(row);
     }
-    const result = await service.createMany(valid, updatedBy);
+    const result = await service.commitMany(valid, updatedBy);
     failed.push(...result.failed);
-    res.json({ success: failed.length === 0, inserted: result.inserted, updated: 0, failed });
+    res.json({ success: failed.length === 0, inserted: result.inserted, updated: result.updated, failed });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

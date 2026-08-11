@@ -120,30 +120,59 @@ async function createParameter(data, updatedBy) {
   }
 }
 
-// Excel toplu içe aktarma: her satır yeni bir placeholder'dır; PH kodları tek
-// transaction içinde sıralı üretilir (yarış koşulu olmadan).
-async function createMany(rowsData, updatedBy) {
+/**
+ * Excel toplu içe aktarma. Satırda `id` varsa o kayıt güncellenir (Opsiyon Kodu
+ * korunur), yoksa yeni placeholder olarak eklenir ve sıradaki PH#### verilir.
+ * PH numaraları tek transaction içinde sıralı üretilir (yarış koşulu olmadan).
+ *
+ * Hatalı satır tüm transaction'ı düşürmesin diye her satır SAVEPOINT içinde
+ * çalışır; Postgres'te başarısız bir ifade sonrası transaction "aborted"
+ * duruma geçtiği için ROLLBACK TO ile o satır geri alınıp devam edilir.
+ */
+async function commitMany(rowsData, updatedBy) {
   const cols = FIELDS.concat('updated_by');
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+  const updatable = FIELDS.filter((f) => f !== 'opsiyon_kodu');
+  const setClause = updatable.map((f, i) => `${f} = $${i + 1}`).join(', ');
+
   const client = await pool.connect();
   const failed = [];
   let inserted = 0;
+  let updated = 0;
   try {
     await client.query('BEGIN');
     let n = await nextOpsiyonKoduNumber(client);
+
     for (const data of rowsData) {
-      const d = { ...data, opsiyon_kodu: 'PH' + n };
+      const id = data.id === undefined || data.id === null || data.id === '' ? null : Number(data.id);
+      await client.query('SAVEPOINT satir');
       try {
-        await client.query(
-          `INSERT INTO option_plan_parametreleri (${cols.join(', ')}) VALUES (${placeholders})`,
-          [...extractValues(d), updatedBy || null]
-        );
-        inserted++;
-        n++;
+        let done = false;
+        if (id != null) {
+          const { rowCount } = await client.query(
+            `UPDATE option_plan_parametreleri
+             SET ${setClause}, updated_by = $${updatable.length + 1}, updated_at = now()
+             WHERE id = $${updatable.length + 2}`,
+            [...updatable.map((f) => pick(data, f)), updatedBy || null, id]
+          );
+          if (rowCount > 0) { updated++; done = true; }
+          // rowCount === 0: kayıt aradan silinmiş; aşağıda yeni kayıt olarak eklenir.
+        }
+        if (!done) {
+          await client.query(
+            `INSERT INTO option_plan_parametreleri (${cols.join(', ')}) VALUES (${placeholders})`,
+            [...extractValues({ ...data, opsiyon_kodu: 'PH' + n }), updatedBy || null]
+          );
+          inserted++;
+          n++;
+        }
+        await client.query('RELEASE SAVEPOINT satir');
       } catch (err) {
+        await client.query('ROLLBACK TO SAVEPOINT satir');
         failed.push({ row: data, error: err.message });
       }
     }
+
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
@@ -151,7 +180,7 @@ async function createMany(rowsData, updatedBy) {
   } finally {
     client.release();
   }
-  return { inserted, failed };
+  return { inserted, updated, failed };
 }
 
 async function updateParameter(id, data, updatedBy) {
@@ -227,7 +256,7 @@ module.exports = {
   findByOpsiyonKodu,
   nextOpsiyonKoduNumber,
   createParameter,
-  createMany,
+  commitMany,
   updateParameter,
   deleteParameter,
   upsertParameter,

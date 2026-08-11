@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const service = require('../services/rangePlanParameterService');
 const importExportService = require('../services/rangePlanImportExportService');
+const { describeDbError } = require('../services/dbErrors');
 
 function f(body, camel, snake) {
   const v = body[camel] !== undefined ? body[camel] : body[snake];
@@ -87,10 +88,20 @@ router.post('/range-plan-parametreleri/import/commit', async (req, res) => {
       try {
         const error = validateBody(row);
         if (error) throw new Error(error);
+
+        // ID gelmişse o kayıt güncellenir (kırılım dahil tüm kolonlar). ID yoksa
+        // kırılıma göre upsert edilir — ID kolonu olmayan eski şablonlar da
+        // böylece çalışmaya devam eder.
+        const id = row.id === undefined || row.id === null || row.id === '' ? null : Number(row.id);
+        if (id != null) {
+          const updatedRow = await service.updateParameter(id, row, updatedBy);
+          if (updatedRow) { updated++; continue; }
+          // Kayıt doğrulama ile commit arasında silinmiş: yeni kayıt olarak ekle.
+        }
         const result = await service.upsertParameter(row, updatedBy);
         if (result.inserted) inserted++; else updated++;
       } catch (err) {
-        failed.push({ row, error: err.message });
+        failed.push({ row, error: describeDbError(err) });
       }
     }
     res.json({ success: failed.length === 0, inserted, updated, failed });

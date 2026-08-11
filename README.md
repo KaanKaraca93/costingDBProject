@@ -55,6 +55,37 @@ içe aktarma doğrula/uygula):
 > `Rangesayacv7_2.xlsx`) kolon adlarıyla **bire bir** aynıdır. Böylece RangeSayac
 > tarafında `XLSX.readFile(...).sheet_to_json(...)` çağrısı, doğrudan bu API'den
 > `axios.get(...)` ile değiştirilebilir; eşleştirme mantığı aynen korunur.
+> **Not:** Aşağıdaki "ID kolonu" değişikliği yalnızca Excel şablonunu ve
+> `import/*` uçlarını etkiler; `?format=plan` çıktısına ID kolonu **eklenmemiştir**,
+> yani RangeSayac tarafında hiçbir değişiklik gerekmez.
+
+### Excel şablonundaki `ID` kolonu (Ön Adet / Option Plan / Range Plan)
+
+Bu üç şablonun **ilk kolonu `ID`**'dir ve ilgili tablonun birincil anahtarını
+taşır. Amaç, "şablonu indir → düzenle → geri yükle" akışında satırın hangi kayda
+karşılık geldiğini kırılım kolonlarından *tahmin etmek* zorunda kalmamaktır.
+
+| Excel'deki ID | Sonuç |
+|---|---|
+| **Dolu** ve DB'de var | O kayıt güncellenir — **kırılım kolonları dahil** tüm alanlar. Bir satırın Marka/Sezon/Range Detayı gibi boyutlarını Excel'den değiştirmek artık kopya satır oluşturmaz. |
+| **Boş** | Yeni kayıt eklenir; ID'yi veritabanı sırayla verir. (Ön Adet ve Range Plan'da kırılım mevcut bir kayda denk geliyorsa eski davranış korunur ve o kayıt güncellenir.) |
+| **Dolu** ama DB'de yok | Verilen ID **yok sayılır** ve içe aktarma cevabında `warnings` altında uyarı döner. Kullanıcının uydurduğu ID kullanılmaz, seri bozulmaz. Satır yine de içe aktarılır (`status: "ok"`). |
+| Aynı ID iki satırda | Satır hata olarak işaretlenir, içe aktarılmaz. |
+| ID başka bir kaydın kırılımına taşınıyorsa | Hata (UNIQUE ihlali önlenir). Ancak o kayıt aynı dosyada başka bir kırılıma taşınıyorsa — ör. iki satırın kırılımını takas etmek — çakışma sayılmaz. |
+
+`import/validate` cevabına `warningCount` ve satır bazında `warnings[]` eklendi;
+`status` alanı değişmedi, dolayısıyla eski istemciler bozulmaz.
+
+**Option Plan özelinde kritik:** bu tabloda kırılım bilinçli olarak UNIQUE
+değildir (aynı kırılımda birden çok planlanan opsiyon olabilir), bu yüzden ID
+olmadan güncelleme *mümkün değildi* — şablonu indirip hiç değiştirmeden geri
+yüklemek bile her satırı kopyalıyordu. ID kolonuyla bu davranış düzeldi;
+güncellemede satırın `Opsiyon Kodu` (PH####) değeri korunur.
+
+**Eski şablonlar:** ID kolonu olmadan indirilmiş dosyalar çalışmaya devam eder.
+Kolonlar artık sabit sıraya göre değil, **başlık satırındaki adlara göre**
+okunur; `ID` başlığı bulunmayan dosyada tüm satırlar eskisi gibi kırılıma göre
+eşleştirilir.
 | `ref_marka`, `ref_alt_kategori`, `ref_segment`, `ref_lifestyle_grup`, `ref_sezon`, `ref_alt_sezon` | Dropdown'lar için isim/ID eşleştirme tabloları — **kullanıcı arayüzde her zaman ismi görür, ID'yi görmez**; ID sadece DB/entegrasyon tarafında tutulur. `ref_alt_sezon`'un anahtarı (`alt_sezon_code`) diğerlerinden farklı olarak **metin** kodudur (örn. "FW1"), çünkü kaynağı bir GenericLookUpAll lookup'ı değil, PLM Theme_Attributes entity'sinin sabit valueset'idir. |
 
 > **Not (geriye dönük uyumluluk):** `sezon_id` ve `alt_sezon_code` kolonları DB seviyesinde

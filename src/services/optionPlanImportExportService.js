@@ -1,11 +1,21 @@
 const ExcelJS = require('exceljs');
 const refService = require('./refService');
 const optionPlanParameterService = require('./optionPlanParameterService');
+const {
+  ID_COLUMN, norm, resolveColumnPositions, readRowTexts,
+  interpretIdCell, decorateIdColumn, summarize
+} = require('./importSheetUtils');
 
 // Option Plan (v6.2) Excel şablonu. Prensip Ön Adet ile aynıdır: ön yüzde /
 // şablonda yalnızca İSİM kolonları (dropdown/veri doğrulamalı) bulunur, ID'ler
-// PLM lookup listelerinden çözümlenir. Opsiyon Kodu şablonda YOKTUR; her satır
-// yeni bir placeholder'dır ve içe aktarmada sıralı PH#### otomatik üretilir.
+// PLM lookup listelerinden çözümlenir. Opsiyon Kodu şablonda YOKTUR; sistem
+// üretir ve güncellemede korunur.
+//
+// İlk kolon ID'dir (tablo birincil anahtarı, bkz. importSheetUtils): dolu satır
+// mevcut kaydı günceller, boş satır yeni placeholder olarak eklenir. Bu tabloda
+// kırılım bilinçli olarak UNIQUE değildir (aynı kırılımda birden çok planlanan
+// opsiyon olabilir), bu yüzden ID olmadan güncelleme mümkün değildir — şablonu
+// indirip geri yüklemek eskiden her satırı kopyalıyordu.
 const SHEET_NAME = 'OptionPlan';
 const LOOKUP_SHEET_NAME = 'Lookups';
 const MIN_VALIDATION_ROWS = 500;
@@ -15,6 +25,7 @@ const MIN_VALIDATION_ROWS = 500;
 // Not: loadRefs tüm ref listelerini {id, ad} olarak normalize eder; bu yüzden
 // tüm lookup kolonlarında idKey = 'id'.
 const COLUMN_DEFS = [
+  ID_COLUMN,
   { key: 'marka', header: 'Marka', width: 22, kind: 'lookup', refKey: 'marka', idKey: 'id', idField: 'brand_id', nameField: 'marka', namedRange: 'ListMarka', required: true },
   { key: 'urunGrubu', header: 'Ürün Grubu', width: 20, kind: 'lookup', refKey: 'kategori', idKey: 'id', idField: 'sub_category_id', nameField: 'urun_grubu', namedRange: 'ListKategori', required: true },
   { key: 'urunAltGrup', header: 'Ürün Alt Grup', width: 22, kind: 'lookup', refKey: 'altKategori', idKey: 'id', idField: 'sub_sub_category_id', nameField: 'urun_alt_grup', namedRange: 'ListAltKategori', required: true },
@@ -25,18 +36,6 @@ const COLUMN_DEFS = [
   { key: 'sezon', header: 'Sezon', width: 18, kind: 'lookup', refKey: 'sezon', idKey: 'id', idField: 'season_id', nameField: null, namedRange: 'ListSezon', required: true },
   { key: 'altSezon', header: 'Alt Sezon', width: 16, kind: 'text-list', refKey: 'altSezon', idKey: 'id', idField: null, nameField: 'alt_sezon', namedRange: 'ListAltSezon' }
 ];
-
-const norm = (v) => (v == null ? '' : String(v).trim().toLowerCase());
-
-function cellText(rawValue) {
-  if (rawValue == null) return '';
-  if (typeof rawValue === 'object') {
-    if (rawValue.text != null) return String(rawValue.text).trim();
-    if (rawValue.result != null) return String(rawValue.result).trim();
-    if (Array.isArray(rawValue.richText)) return rawValue.richText.map((t) => t.text).join('').trim();
-  }
-  return String(rawValue).trim();
-}
 
 const mapRef = (rows, idCol) => (rows || []).map((r) => ({ id: r[idCol], ad: r.ad }));
 
@@ -84,6 +83,7 @@ function buildTemplateWorkbook({ refs, rows }) {
   lookupSheet.state = 'veryHidden';
 
   COLUMN_DEFS.forEach((col, colIdx) => {
+    if (!col.namedRange) return; // ID kolonunun dropdown listesi yok
     const colLetter = String.fromCharCode(65 + colIdx);
     const items = (refs[col.refKey] || []).map((item) => item.ad);
     lookupSheet.getCell(`${colLetter}1`).value = col.refKey;
@@ -101,7 +101,8 @@ function buildTemplateWorkbook({ refs, rows }) {
   rows.forEach((r) => {
     const rowObj = {};
     COLUMN_DEFS.forEach((col) => {
-      if (col.nameField) rowObj[col.key] = r[col.nameField] || '';
+      if (col.kind === 'id') rowObj[col.key] = r.id != null ? Number(r.id) : '';
+      else if (col.nameField) rowObj[col.key] = r[col.nameField] || '';
       else if (col.key === 'sezon') {
         const s = (refs.sezon || []).find((x) => String(x.id) === String(r.season_id));
         rowObj[col.key] = s ? s.ad : '';
@@ -113,6 +114,7 @@ function buildTemplateWorkbook({ refs, rows }) {
   const lastValidationRow = Math.max(rows.length + 1, 1) + MIN_VALIDATION_ROWS;
   for (let rowNum = 2; rowNum <= lastValidationRow; rowNum++) {
     COLUMN_DEFS.forEach((col, colIdx) => {
+      if (!col.namedRange) return; // ID kolonu decorateIdColumn ile işleniyor
       const colLetter = String.fromCharCode(65 + colIdx);
       sheet.getCell(`${colLetter}${rowNum}`).dataValidation = {
         type: 'list',
@@ -125,26 +127,38 @@ function buildTemplateWorkbook({ refs, rows }) {
       };
     });
   }
+
+  decorateIdColumn(sheet, 'A', lastValidationRow);
+
   return workbook;
 }
 
-function validateSheetRows(sheet, refs) {
+function validateSheetRows(sheet, refs, existingRows) {
   const indexes = {};
   COLUMN_DEFS.forEach((col) => { indexes[col.key] = buildIndex(refs[col.refKey]); });
+
+  const existingIds = new Set((existingRows || []).map((r) => Number(r.id)));
+  const positions = resolveColumnPositions(sheet, COLUMN_DEFS);
+  const seenIds = new Map();
 
   const results = [];
   sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
     if (rowNumber === 1) return;
-    const values = row.values;
-    const texts = {};
-    COLUMN_DEFS.forEach((col, idx) => { texts[col.key] = cellText(values[idx + 1]); });
+    const texts = readRowTexts(row, COLUMN_DEFS, positions);
     if (COLUMN_DEFS.every((col) => !texts[col.key])) return;
 
     const errors = [];
+    const warnings = [];
     const resolved = {};
     const display = {};
 
+    const idInfo = interpretIdCell(texts.id, existingIds, seenIds, rowNumber);
+    display.id = texts.id;
+    if (idInfo.error) errors.push(idInfo.error);
+    if (idInfo.warning) warnings.push(idInfo.warning);
+
     COLUMN_DEFS.forEach((col) => {
+      if (col.kind === 'id') return;
       const txt = texts[col.key];
       display[col.key] = txt;
       if (!txt) {
@@ -166,22 +180,24 @@ function validateSheetRows(sheet, refs) {
     });
 
     const status = errors.length === 0 ? 'ok' : 'error';
+    // Kırılım UNIQUE olmadığı için eşleştirmenin tek yolu ID kolonudur.
+    const targetId = status === 'ok' ? idInfo.id : null;
+    if (targetId != null) resolved.id = targetId;
+
     results.push({
       rowNumber,
+      id: display.id,
+      targetId,
       display,
       status,
       errors,
-      action: status === 'ok' ? 'insert' : null,
+      warnings,
+      action: status === 'ok' ? (targetId != null ? 'update' : 'insert') : null,
       resolved: status === 'ok' ? resolved : null
     });
   });
 
-  return {
-    totalRows: results.length,
-    validCount: results.filter((r) => r.status === 'ok').length,
-    errorCount: results.filter((r) => r.status === 'error').length,
-    rows: results
-  };
+  return summarize(results);
 }
 
 async function buildTemplateWorkbookFromDb() {
@@ -194,8 +210,8 @@ async function parseAndValidateWorkbookBuffer(buffer) {
   await workbook.xlsx.load(buffer);
   const sheet = workbook.getWorksheet(SHEET_NAME) || workbook.worksheets[0];
   if (!sheet) throw new Error('Excel dosyasında beklenen sayfa bulunamadı.');
-  const refs = await loadRefs();
-  return validateSheetRows(sheet, refs);
+  const [refs, existingRows] = await Promise.all([loadRefs(), optionPlanParameterService.listParameters()]);
+  return validateSheetRows(sheet, refs, existingRows);
 }
 
 module.exports = { buildTemplateWorkbook, buildTemplateWorkbookFromDb, validateSheetRows, parseAndValidateWorkbookBuffer, SHEET_NAME, COLUMN_DEFS };

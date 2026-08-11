@@ -1,6 +1,10 @@
 const ExcelJS = require('exceljs');
 const refService = require('./refService');
 const onAdetParameterService = require('./onAdetParameterService');
+const {
+  ID_COLUMN, norm, resolveColumnPositions, readRowTexts,
+  interpretIdCell, decorateIdColumn, resolveKeyConflicts, summarize
+} = require('./importSheetUtils');
 
 const SHEET_NAME = 'OnAdetParametreleri';
 const LOOKUP_SHEET_NAME = 'Lookups';
@@ -11,8 +15,13 @@ const ADET_MAX = 100000;
 /**
  * decision_parameters (MU/Sarf) tablosunun Excel akışıyla aynı mantık; farkı 7'li
  * kırılım ve tek bir tam sayı değer alanı (Adet) olması. Bkz. importExportService.js.
+ *
+ * İlk kolon ID'dir (bkz. importSheetUtils): satır eşleştirmesi kırılıma göre
+ * değil, birincil anahtara göre yapılır. Böylece Excel'den bir satırın kırılımı
+ * da değiştirilebilir; kopya satır oluşmaz.
  */
 const COLUMN_DEFS = [
+  ID_COLUMN,
   { key: 'marka', header: 'Marka', width: 22, kind: 'lookup', refKey: 'marka', idKey: 'marka_id', displayField: 'marka_ad', resolvedKey: 'markaId', namedRange: 'ListMarka' },
   { key: 'bolum', header: 'Bölüm', width: 20, kind: 'lookup', refKey: 'bolum', idKey: 'bolum_id', displayField: 'bolum_ad', resolvedKey: 'bolumId', namedRange: 'ListBolum' },
   { key: 'kategori', header: 'Kategori', width: 22, kind: 'lookup', refKey: 'kategori', idKey: 'kategori_id', displayField: 'kategori_ad', resolvedKey: 'kategoriId', namedRange: 'ListKategori' },
@@ -25,8 +34,6 @@ const COLUMN_DEFS = [
 ];
 
 const LOOKUP_COLUMNS = COLUMN_DEFS.filter((c) => c.kind === 'lookup');
-
-const norm = (v) => (v == null ? '' : String(v).trim().toLowerCase());
 
 function buildTemplateWorkbook({ refs, rows }) {
   const workbook = new ExcelJS.Workbook();
@@ -69,6 +76,7 @@ function buildTemplateWorkbook({ refs, rows }) {
 
   for (let rowNum = 2; rowNum <= lastValidationRow; rowNum++) {
     COLUMN_DEFS.forEach((col, colIdx) => {
+      if (col.kind === 'id') return; // decorateIdColumn ile ayrıca işleniyor
       const colLetter = String.fromCharCode(65 + colIdx);
       const cell = sheet.getCell(`${colLetter}${rowNum}`);
       if (col.kind === 'lookup') {
@@ -96,17 +104,9 @@ function buildTemplateWorkbook({ refs, rows }) {
     });
   }
 
-  return workbook;
-}
+  decorateIdColumn(sheet, 'A', lastValidationRow);
 
-function cellText(rawValue) {
-  if (rawValue == null) return '';
-  if (typeof rawValue === 'object') {
-    if (rawValue.text != null) return String(rawValue.text).trim();
-    if (rawValue.result != null) return String(rawValue.result).trim();
-    if (Array.isArray(rawValue.richText)) return rawValue.richText.map((t) => t.text).join('').trim();
-  }
-  return String(rawValue).trim();
+  return workbook;
 }
 
 function buildLookupIndex(list, idKey) {
@@ -125,28 +125,38 @@ function validateSheetRows(sheet, refs, existingRows) {
     lookupIndexes[col.key] = buildLookupIndex(refs[col.refKey], col.idKey);
   });
 
-  const existingKeys = new Set(
-    (existingRows || []).map((r) => LOOKUP_COLUMNS.map((col) => r[col.idKey]).join('~'))
-  );
+  // Kırılım -> o kırılımın sahibi kayıt id'si. ID kolonu boş satırlarda eski
+  // (kırılım bazlı) eşleştirmeyi sürdürmek ve ID ile gelen bir satırın başka
+  // bir kaydın kırılımına taşınmasını yakalamak için gerekli.
+  const existingKeyToId = new Map();
+  const existingIds = new Set();
+  for (const r of existingRows || []) {
+    existingKeyToId.set(LOOKUP_COLUMNS.map((col) => r[col.idKey]).join('~'), r.id);
+    existingIds.add(Number(r.id));
+  }
 
+  const positions = resolveColumnPositions(sheet, COLUMN_DEFS);
   const seenInFile = new Map();
+  const seenIds = new Map();
   const results = [];
 
   sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
     if (rowNumber === 1) return;
 
-    const values = row.values;
-    const texts = {};
-    COLUMN_DEFS.forEach((col, idx) => {
-      texts[col.key] = cellText(values[idx + 1]);
-    });
+    const texts = readRowTexts(row, COLUMN_DEFS, positions);
 
     const isEmpty = COLUMN_DEFS.every((col) => !texts[col.key]);
     if (isEmpty) return;
 
     const errors = [];
+    const warnings = [];
     const resolved = {};
     const display = {};
+
+    const idInfo = interpretIdCell(texts.id, existingIds, seenIds, rowNumber);
+    display.id = texts.id;
+    if (idInfo.error) errors.push(idInfo.error);
+    if (idInfo.warning) warnings.push(idInfo.warning);
 
     LOOKUP_COLUMNS.forEach((col) => {
       const txt = texts[col.key];
@@ -184,6 +194,10 @@ function validateSheetRows(sheet, refs, existingRows) {
       }
     });
 
+    // Hedef kayıt: önce ID kolonu, ID yoksa kırılım eşleşmesi (eski davranış).
+    let targetId = idInfo.id;
+    let conflictOwnerId = null;
+
     let fileKey = null;
     const hasAllLookupIds = LOOKUP_COLUMNS.every((col) => resolved[col.resolvedKey] != null);
     if (hasAllLookupIds) {
@@ -193,13 +207,27 @@ function validateSheetRows(sheet, refs, existingRows) {
       } else {
         seenInFile.set(fileKey, rowNumber);
       }
+
+      const keyOwnerId = existingKeyToId.get(fileKey);
+      if (targetId == null) {
+        if (keyOwnerId != null) targetId = keyOwnerId;
+      } else if (keyOwnerId != null && Number(keyOwnerId) !== Number(targetId)) {
+        // Çakışma olabilir; kesin kararı ikinci geçiş verir (sahibi kayıt aynı
+        // dosyada başka bir kırılıma taşınıyorsa bu kırılım boşalıyor demektir).
+        conflictOwnerId = keyOwnerId;
+      }
     }
 
     const status = errors.length === 0 ? 'ok' : 'error';
-    const action = status === 'ok' ? (existingKeys.has(fileKey) ? 'update' : 'insert') : null;
+    const action = status === 'ok' ? (targetId != null ? 'update' : 'insert') : null;
+    if (status === 'ok' && targetId != null) resolved.id = targetId;
 
     results.push({
       rowNumber,
+      _fileKey: fileKey,
+      _conflictOwnerId: conflictOwnerId,
+      id: display.id,
+      targetId: status === 'ok' ? (targetId != null ? targetId : null) : null,
       marka: display.marka,
       bolum: display.bolum,
       kategori: display.kategori,
@@ -211,17 +239,13 @@ function validateSheetRows(sheet, refs, existingRows) {
       adet: display.adet,
       status,
       errors,
+      warnings,
       action,
       resolved: status === 'ok' ? resolved : null
     });
   });
 
-  return {
-    totalRows: results.length,
-    validCount: results.filter((r) => r.status === 'ok').length,
-    errorCount: results.filter((r) => r.status === 'error').length,
-    rows: results
-  };
+  return summarize(resolveKeyConflicts(results));
 }
 
 async function fetchAllRefs() {

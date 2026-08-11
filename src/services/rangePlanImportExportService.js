@@ -2,6 +2,10 @@ const ExcelJS = require('exceljs');
 const refService = require('./refService');
 const rangePlanParameterService = require('./rangePlanParameterService');
 const { RANGE_FIELDS, RANGE_TAGS, RANGE_LIFESTYLE_GROUPS } = require('../config/rangeFields');
+const {
+  ID_COLUMN, norm, resolveColumnPositions, readRowTexts,
+  interpretIdCell, decorateIdColumn, resolveKeyConflicts, summarize
+} = require('./importSheetUtils');
 
 // Range Plan (v7.2) Excel şablonu. Prensip: ön yüzde/şablonda İSİM kolonları,
 // tabloda ID'ler. Özel iki kolon:
@@ -16,6 +20,7 @@ const MIN_VALIDATION_ROWS = 500;
 
 // Not: loadContext ref listelerini {id, ad} olarak normalize eder; idKey = 'id'.
 const COLUMN_DEFS = [
+  ID_COLUMN,
   { key: 'marka', header: 'Marka', width: 18, kind: 'lookup', refKey: 'marka', idKey: 'id', idField: 'brand_id', nameField: 'marka', required: true },
   { key: 'urunGrubu', header: 'Ürün Gurbu', width: 18, kind: 'lookup', refKey: 'kategori', idKey: 'id', idField: 'sub_category_id', nameField: 'urun_grubu', required: true },
   { key: 'rangeTag', header: 'RangeTag', width: 12, kind: 'text-list', listKey: 'rangeTags', field: 'range_tag' },
@@ -28,26 +33,16 @@ const COLUMN_DEFS = [
   { key: 'lifeStyleGrup', header: 'Life Style Grup', width: 16, kind: 'text-list', listKey: 'lifeStyleGroups', field: 'life_style_grup' }
 ];
 
-const norm = (v) => (v == null ? '' : String(v).trim().toLowerCase());
-
-// keyOf: RangeSayac makeKey ile aynı normalizasyon (NULL güvenli).
+// keyOf: ID kolonu boş satırlarda hangi kaydın güncelleneceğini belirler; bu
+// yüzden rangePlanParameterService.findByKey ile BİREBİR aynı normalizasyonu
+// kullanmak zorunda (o da IS NOT DISTINCT FROM ile karşılaştırır). Daha önce
+// alt_sezon büyük harfe çevriliyor, boş life_style_grup "Diğer"e eşitleniyordu;
+// bu yüzden önizleme "güncellenecek" derken commit yeni kayıt ekliyordu.
 const n = (v) => (v == null || v === '') ? 'null' : String(v).trim();
-const na = (v) => (v == null || v === '') ? 'null' : String(v).trim().toUpperCase();
-const ng = (v) => (v == null || String(v).trim() === '') ? 'Diğer' : String(v).trim();
 const keyOf = (r) => [
   n(r.brand_id), n(r.sub_category_id), n(r.ext_fld_id), n(r.drop_down_value),
-  n(r.cud5_id), n(r.season_id), na(r.alt_sezon), ng(r.life_style_grup)
+  n(r.cud5_id), n(r.season_id), n(r.alt_sezon), n(r.life_style_grup)
 ].join('_');
-
-function cellText(rawValue) {
-  if (rawValue == null) return '';
-  if (typeof rawValue === 'object') {
-    if (rawValue.text != null) return String(rawValue.text).trim();
-    if (rawValue.result != null) return String(rawValue.result).trim();
-    if (Array.isArray(rawValue.richText)) return rawValue.richText.map((t) => t.text).join('').trim();
-  }
-  return String(rawValue).trim();
-}
 
 const mapRef = (rows, idCol) => (rows || []).map((r) => ({ id: r[idCol], ad: r.ad }));
 
@@ -129,7 +124,8 @@ function buildTemplateWorkbook(ctx, rows) {
   rows.forEach((r) => {
     const rowObj = {};
     COLUMN_DEFS.forEach((col) => {
-      if (col.kind === 'lookup') {
+      if (col.kind === 'id') rowObj[col.key] = r.id != null ? Number(r.id) : '';
+      else if (col.kind === 'lookup') {
         if (col.nameField) rowObj[col.key] = r[col.nameField] || '';
         else {
           const src = (ctx.refs[col.refKey] || []).find((x) => String(x.id) === String(r[col.idField]));
@@ -163,6 +159,9 @@ function buildTemplateWorkbook(ctx, rows) {
       }
     });
   }
+
+  decorateIdColumn(sheet, 'A', lastValidationRow);
+
   return workbook;
 }
 
@@ -183,22 +182,36 @@ function validateSheetRows(sheet, ctx, existingRows) {
     detayIdx.get(k).push(d);
   }
 
-  const existingKeys = new Set((existingRows || []).map((r) => keyOf(r)));
+  // Kırılım -> sahibi kayıt id'si (ID kolonu boş satırlarda eski davranış).
+  const existingKeyToId = new Map();
+  const existingIds = new Set();
+  for (const r of existingRows || []) {
+    existingKeyToId.set(keyOf(r), r.id);
+    existingIds.add(Number(r.id));
+  }
+
+  const positions = resolveColumnPositions(sheet, COLUMN_DEFS);
   const seenInFile = new Map();
+  const seenIds = new Map();
   const results = [];
 
   sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
     if (rowNumber === 1) return;
-    const values = row.values;
-    const texts = {};
-    COLUMN_DEFS.forEach((col, idx) => { texts[col.key] = cellText(values[idx + 1]); });
+    const texts = readRowTexts(row, COLUMN_DEFS, positions);
     if (COLUMN_DEFS.every((col) => !texts[col.key])) return;
 
     const errors = [];
+    const warnings = [];
     const resolved = {};
     const display = {};
 
+    const idInfo = interpretIdCell(texts.id, existingIds, seenIds, rowNumber);
+    display.id = texts.id;
+    if (idInfo.error) errors.push(idInfo.error);
+    if (idInfo.warning) warnings.push(idInfo.warning);
+
     COLUMN_DEFS.forEach((col) => {
+      if (col.kind === 'id') return;
       const txt = texts[col.key];
       display[col.key] = txt;
 
@@ -235,31 +248,46 @@ function validateSheetRows(sheet, ctx, existingRows) {
       }
     });
 
-    const status0 = errors.length === 0;
-    let action = null;
-    if (status0) {
-      const k = keyOf(resolved);
-      if (seenInFile.has(k)) errors.push(`Bu kırılım şablonda ${seenInFile.get(k)}. satırla tekrar ediyor.`);
-      else { seenInFile.set(k, rowNumber); action = existingKeys.has(k) ? 'update' : 'insert'; }
+    // Hedef kayıt: önce ID kolonu, ID yoksa kırılım eşleşmesi (eski davranış).
+    let targetId = idInfo.id;
+    let conflictOwnerId = null;
+    let fileKey = null;
+
+    if (errors.length === 0) {
+      fileKey = keyOf(resolved);
+      if (seenInFile.has(fileKey)) {
+        errors.push(`Bu kırılım şablonda ${seenInFile.get(fileKey)}. satırla tekrar ediyor.`);
+      } else {
+        seenInFile.set(fileKey, rowNumber);
+        const keyOwnerId = existingKeyToId.get(fileKey);
+        if (targetId == null) {
+          if (keyOwnerId != null) targetId = keyOwnerId;
+        } else if (keyOwnerId != null && Number(keyOwnerId) !== Number(targetId)) {
+          // Kesin kararı ikinci geçiş verir (bkz. resolveKeyConflicts).
+          conflictOwnerId = keyOwnerId;
+        }
+      }
     }
 
     const status = errors.length === 0 ? 'ok' : 'error';
+    if (status === 'ok' && targetId != null) resolved.id = targetId;
+
     results.push({
       rowNumber,
+      _fileKey: fileKey,
+      _conflictOwnerId: conflictOwnerId,
+      id: display.id,
+      targetId: status === 'ok' ? (targetId != null ? targetId : null) : null,
       display,
       status,
       errors,
-      action: status === 'ok' ? action : null,
+      warnings,
+      action: status === 'ok' ? (targetId != null ? 'update' : 'insert') : null,
       resolved: status === 'ok' ? resolved : null
     });
   });
 
-  return {
-    totalRows: results.length,
-    validCount: results.filter((r) => r.status === 'ok').length,
-    errorCount: results.filter((r) => r.status === 'error').length,
-    rows: results
-  };
+  return summarize(resolveKeyConflicts(results));
 }
 
 async function buildTemplateWorkbookFromDb() {
