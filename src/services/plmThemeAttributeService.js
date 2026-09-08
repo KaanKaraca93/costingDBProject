@@ -42,13 +42,69 @@ async function fetchClusterValueset() {
 }
 
 /**
- * Tek bir temanin Alt_Sezon degerini IDM'den cozer.
- * Tema PID'si (Theme.Description, orn. "Theme_Attributes-397-0-LATEST")
- * IDM item'ina isaret eder; Alt_Sezon o item'in bir attribute'udur.
- * Hata durumunda null doner (senkronizasyon tek tema yuzunden durmasin).
+ * Tema ozelliklerinin IDM'deki alan adlari ve valueset'leri.
+ *
+ * Bu alanlar IDM'de ham HALDE VALUESET ANAHTARI tutar; kullaniciya gosterilecek
+ * metin valueset'in `desc` alanindadir:
+ *   Alt_Sezon     : anahtar "SS1"  -> desc "SS1"        (ikisi ayni)
+ *   Tema_Kisa_Kod : anahtar "463"  -> desc "B-SCT1"     (farkli!)
+ *   Hibrit        : anahtar "002"  -> desc "PLAN"       (farkli!)
+ * Bu yuzden once entity tanimindan valueset haritalari cekilir, sonra her
+ * temanin ham degerleri bu haritalardan gecirilir.
+ *
+ * Alan adlari PLM tarafinda benzer isimlerle anilabildigi icin (Tema_Kisa_Kodu,
+ * Hibrit_Model gibi) her ozellik icin aday isim listesi denenir.
  */
-async function fetchAltSezonForPid(pid) {
-  if (!pid) return null;
+const THEME_ATTRS = {
+  altSezon: ['Alt_Sezon'],
+  kisaAd: ['Tema_Kisa_Kod', 'Tema_Kisa_Kodu'],
+  hibrit: ['Hibrit', 'Hibrit_Model']
+};
+
+function findAttr(attrs, adaylar) {
+  for (const ad of adaylar) {
+    const f = attrs.find((a) => a && (a.name === ad || a.qual === ad));
+    if (f) return f;
+  }
+  return null;
+}
+
+/**
+ * Theme_Attributes entity tanimindan, ilgilendigimiz alanlarin
+ * valueset haritalarini (anahtar -> gosterilecek ad) cikarir.
+ * Tek cagri; tum temalar icin bir kez yapilir.
+ */
+async function fetchThemeAttrMaps() {
+  const authHeader = await tokenService.getAuthorizationHeader();
+  const url = `${PLM_CONFIG.ionApiUrl}/${PLM_CONFIG.tenantId}/IDM/api/datamodel/entities/Theme_Attributes`;
+  const { data } = await axios.get(url, { headers: { Authorization: authHeader, Accept: 'application/json' } });
+  const attrs = (data.entity && data.entity.attrs && data.entity.attrs.attr) || [];
+
+  const maps = {};
+  for (const key of Object.keys(THEME_ATTRS)) {
+    const attr = findAttr(attrs, THEME_ATTRS[key]);
+    const values = (attr && attr.valueset && attr.valueset.value) || [];
+    maps[key] = new Map(values.map((v) => [String(v.name), v.desc || v.name]));
+  }
+  return maps;
+}
+
+/** Ham degeri valueset uzerinden gosterilecek ada cevirir. */
+function cozumle(maps, key, ham) {
+  if (ham == null || ham === '') return null;
+  const m = maps[key];
+  const d = m ? m.get(String(ham)) : undefined;
+  return (d != null && d !== '') ? String(d) : String(ham);
+}
+
+/**
+ * Tek bir temanin Alt_Sezon / Tema_Kisa_Kod / Hibrit degerlerini IDM'den okur.
+ * Tema PID'si (Theme.Description) IDM item'ina isaret eder.
+ * Hata durumunda hepsi null doner (senkronizasyon tek tema yuzunden durmasin).
+ */
+async function fetchThemeAttrsForPid(pid, maps) {
+  const bos = { altSezon: null, kisaAd: null, hibrit: null };
+  if (!pid) return bos;
   try {
     const authHeader = await tokenService.getAuthorizationHeader();
     const url = `${PLM_CONFIG.ionApiUrl}/${PLM_CONFIG.tenantId}/IDM/api/items/${encodeURIComponent(pid)}`;
@@ -56,27 +112,37 @@ async function fetchAltSezonForPid(pid) {
       headers: { Authorization: authHeader, Accept: 'application/json' }
     });
     const attrs = (data && data.item && data.item.attrs && data.item.attrs.attr) || [];
-    const found = attrs.find((a) => a && (a.name === 'Alt_Sezon' || a.qual === 'Alt_Sezon'));
-    return found && found.value != null ? String(found.value) : null;
+    const ham = {};
+    for (const key of Object.keys(THEME_ATTRS)) {
+      const f = findAttr(attrs, THEME_ATTRS[key]);
+      ham[key] = f && f.value != null ? String(f.value) : null;
+    }
+    return {
+      altSezon: cozumle(maps, 'altSezon', ham.altSezon),
+      kisaAd: cozumle(maps, 'kisaAd', ham.kisaAd),
+      hibrit: cozumle(maps, 'hibrit', ham.hibrit)
+    };
   } catch (err) {
-    return null;
+    return bos;
   }
 }
 
 /**
- * Bir dizi { themeId, pid } icin Alt_Sezon'u sinirli eszamanlilikla cozer.
+ * Bir dizi { themeId, pid } icin tema ozelliklerini sinirli eszamanlilikla cozer.
  * IDM cagrisi tema basina ~180 ms; 550 tema 10 paralel ile ~10 sn surer, bu
- * yuzden senkronizasyonda yalnizca Alt_Sezon'u HENUZ BILINMEYEN temalar icin
- * cagrilir (ilk senkron yavas, sonrakiler hizli).
- * @returns {Promise<Array<{themeId: number, altSezon: string|null}>>}
+ * yuzden senkronizasyonda yalnizca HENUZ COZULMEMIS temalar icin cagrilir.
+ * @returns {Promise<Array<{themeId, altSezon, kisaAd, hibrit}>>}
  */
-async function fetchAltSezonForThemes(items, concurrency = 10) {
+async function fetchThemeAttrsForThemes(items, concurrency = 10) {
+  if (!items || items.length === 0) return [];
+  const maps = await fetchThemeAttrMaps();
   const sonuc = [];
   let cursor = 0;
   const worker = async () => {
     while (cursor < items.length) {
       const it = items[cursor++];
-      sonuc.push({ themeId: it.themeId, altSezon: await fetchAltSezonForPid(it.pid) });
+      const v = await fetchThemeAttrsForPid(it.pid, maps);
+      sonuc.push({ themeId: it.themeId, ...v });
     }
   };
   const n = Math.min(concurrency, items.length) || 0;
@@ -88,6 +154,8 @@ module.exports = {
   fetchEntityAttributeValueset,
   fetchAltSezonValueset,
   fetchClusterValueset,
-  fetchAltSezonForPid,
-  fetchAltSezonForThemes
+  fetchThemeAttrMaps,
+  fetchThemeAttrsForPid,
+  fetchThemeAttrsForThemes,
+  THEME_ATTRS
 };

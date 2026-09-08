@@ -64,7 +64,7 @@ async function listExtFieldDropDown() {
 
 async function listTheme() {
   const { rows } = await pool.query(
-    'SELECT theme_id, ad, kisa_ad, code, pid, alt_sezon FROM ref_theme ORDER BY ad'
+    'SELECT theme_id, ad, kisa_ad, code, pid, alt_sezon, hibrit FROM ref_theme ORDER BY ad'
   );
   return rows;
 }
@@ -182,26 +182,40 @@ async function upsertThemes(items) {
 }
 
 /**
- * Alt_Sezon'u henuz cozulmemis (NULL) ve PID'si olan temalari doner.
- * Senkronizasyonda yalnizca bunlar icin IDM'e gidilir.
+ * Ozellikleri (Alt_Sezon / Tema_Kisa_Kod / Hibrit) henuz IDM'den cozulmemis,
+ * PID'si olan temalari doner. attrs_synced_at ile takip edilir: Hibrit gibi
+ * bos donen alanlar yuzunden her senkronizasyonda tekrar IDM'e gidilmesin.
  */
-async function listThemesMissingAltSezon() {
+async function listThemesNeedingAttrs(force) {
+  const kosul = force ? '' : 'AND attrs_synced_at IS NULL';
   const { rows } = await pool.query(
     `SELECT theme_id, pid FROM ref_theme
-     WHERE alt_sezon IS NULL AND pid IS NOT NULL AND pid <> ''`
+     WHERE pid IS NOT NULL AND pid <> '' ${kosul}`
   );
   return rows.map((r) => ({ themeId: r.theme_id, pid: r.pid }));
 }
 
-/** IDM'den cozulen Alt_Sezon degerlerini ref_theme'e yazar. */
-async function updateThemeAltSezonlar(items) {
-  const dolu = (items || []).filter((i) => i.altSezon != null && i.altSezon !== '');
-  if (dolu.length === 0) return 0;
+/**
+ * IDM'den cozulen tema ozelliklerini ref_theme'e yazar.
+ * Bos donen alan mevcut degeri EZMEZ (COALESCE): bir alan IDM'de bos ama
+ * daha once girilmisse korunur. attrs_synced_at her durumda damgalanir.
+ */
+async function updateThemeAttrs(items) {
+  const liste = items || [];
+  if (liste.length === 0) return 0;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    for (const it of dolu) {
-      await client.query('UPDATE ref_theme SET alt_sezon = $2 WHERE theme_id = $1', [it.themeId, it.altSezon]);
+    for (const it of liste) {
+      await client.query(
+        `UPDATE ref_theme
+         SET alt_sezon = COALESCE($2, alt_sezon),
+             kisa_ad   = COALESCE($3, kisa_ad),
+             hibrit    = COALESCE($4, hibrit),
+             attrs_synced_at = now()
+         WHERE theme_id = $1`,
+        [it.themeId, it.altSezon || null, it.kisaAd || null, it.hibrit || null]
+      );
     }
     await client.query('COMMIT');
   } catch (err) {
@@ -210,7 +224,42 @@ async function updateThemeAltSezonlar(items) {
   } finally {
     client.release();
   }
-  return dolu.length;
+  return liste.length;
+}
+
+/**
+ * Marka bazinda varsayilan kategori kumesi (Tema Plan giris matrisi bununla acilir).
+ * brandId verilmezse tum markalarin kumesi doner.
+ */
+async function listMarkaKategori(brandId) {
+  const sql = brandId
+    ? 'SELECT brand_id, sub_category_id FROM ref_marka_kategori WHERE brand_id = $1 ORDER BY sub_category_id'
+    : 'SELECT brand_id, sub_category_id FROM ref_marka_kategori ORDER BY brand_id, sub_category_id';
+  const { rows } = await pool.query(sql, brandId ? [brandId] : []);
+  return rows;
+}
+
+/** Bir markanin varsayilan kategori kumesini tamamen degistirir. */
+async function setMarkaKategori(brandId, subCategoryIds) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM ref_marka_kategori WHERE brand_id = $1', [brandId]);
+    for (const id of subCategoryIds || []) {
+      await client.query(
+        `INSERT INTO ref_marka_kategori (brand_id, sub_category_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [brandId, id]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return (subCategoryIds || []).length;
 }
 
 async function getSetting(key) {
@@ -249,8 +298,10 @@ module.exports = {
   syncRefTablesFromPlm,
   upsertExtFieldDropDown,
   upsertThemes,
-  listThemesMissingAltSezon,
-  updateThemeAltSezonlar,
+  listThemesNeedingAttrs,
+  updateThemeAttrs,
+  listMarkaKategori,
+  setMarkaKategori,
   getSetting,
   setSetting,
   listSettings

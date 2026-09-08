@@ -278,6 +278,52 @@ router.post('/ref/alt-kategori', async (req, res) => {
 
 /**
  * @swagger
+ * /api/ref/marka-kategori:
+ *   get:
+ *     summary: >
+ *       Marka bazinda varsayilan kategori kumesi — Tema Plan giris matrisi
+ *       bu kumeyle acilir. Tekstilde bir markanin her temasinda ayni urun
+ *       gruplari kullanilir; kullanici uzerinde ekleme/cikarma yapabilir.
+ *     tags: [Referans Veriler]
+ *     parameters:
+ *       - in: query
+ *         name: brandId
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Basarili
+ */
+router.get('/ref/marka-kategori', async (req, res) => {
+  try {
+    res.json(await refService.listMarkaKategori(req.query.brandId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/ref/marka-kategori/{brandId}:
+ *   put:
+ *     summary: Bir markanin varsayilan kategori kumesini degistirir
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Guncellendi
+ */
+router.put('/ref/marka-kategori/:brandId', async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body && req.body.subCategoryIds) ? req.body.subCategoryIds : null;
+    if (!ids) return res.status(400).json({ error: 'subCategoryIds dizisi zorunludur.' });
+    const n = await refService.setMarkaKategori(Number(req.params.brandId), ids.map(Number));
+    res.json({ success: true, count: n });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
  * /api/ref/sync-from-plm:
  *   post:
  *     summary: Marka/Alt Kategori/Segment/LifeStyle Grubu/Sezon/Alt Sezon listelerini PLM'den senkronize eder
@@ -311,12 +357,12 @@ router.post('/ref/sync-from-plm', async (req, res) => {
     // Temanin Alt_Sezon'u OData'da degil IDM'de (tema PID'si altinda) durur ve
     // tema basina bir cagri gerektirir. Bu yuzden yalnizca HENUZ BILINMEYEN
     // temalar icin cozulur: ilk senkron ~10 sn surer, sonrakiler neredeyse bedava.
-    const eksik = await refService.listThemesMissingAltSezon();
+    const eksik = await refService.listThemesNeedingAttrs(req.query.force === '1');
     if (eksik.length) {
-      const cozulen = await plmThemeAttributeService.fetchAltSezonForThemes(eksik);
-      result.themeAltSezon = await refService.updateThemeAltSezonlar(cozulen);
+      const cozulen = await plmThemeAttributeService.fetchThemeAttrsForThemes(eksik);
+      result.themeOzellik = await refService.updateThemeAttrs(cozulen);
     } else {
-      result.themeAltSezon = 0;
+      result.themeOzellik = 0;
     }
     res.json({ success: true, synced: result });
   } catch (err) {

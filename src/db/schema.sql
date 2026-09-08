@@ -314,3 +314,26 @@ CREATE UNIQUE INDEX IF NOT EXISTS theme_plan_parametreleri_key
     ON theme_plan_parametreleri (
         COALESCE(theme_id, -1), sub_category_id, season_id, COALESCE(alt_sezon, '')
     );
+
+-- Temanin diger IDM ozellikleri. Alt_Sezon gibi bunlar da tema PID'si altinda
+-- durur ve valueset anahtari olarak saklanir (gorunen ad valueset'in desc'idir):
+--   Tema_Kisa_Kod -> kisa_ad  (orn. anahtar 463 -> "B-SCT1")
+--   Hibrit        -> hibrit   (orn. anahtar 002 -> "PLAN", 003 -> "SEMI PLAN")
+-- Hibrit her temaya girilmemistir; bos olmasi normaldir.
+-- attrs_synced_at: bu uc alanin IDM'den en son ne zaman cozuldugu. Tema basina
+-- bir IDM cagrisi gerektigi icin senkronizasyon yalnizca hic cozulmemis
+-- temalari isler (bos donen alan yuzunden her seferinde tekrar denenmesin).
+ALTER TABLE ref_theme ADD COLUMN IF NOT EXISTS hibrit TEXT;
+ALTER TABLE ref_theme ADD COLUMN IF NOT EXISTS attrs_synced_at TIMESTAMPTZ;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- MARKA VARSAYILAN KATEGORILERI
+-- Tekstilde bir markanin her temasinda ayni urun gruplari kullanilir; sadece
+-- opsiyon sayisi degisir. Tema Plan giris ekraninda matris bu kumeyle acilir,
+-- kullanici uzerinde ekleme/cikarma yapabilir.
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ref_marka_kategori (
+    brand_id        INTEGER NOT NULL,
+    sub_category_id INTEGER NOT NULL,
+    PRIMARY KEY (brand_id, sub_category_id)
+);

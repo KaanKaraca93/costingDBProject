@@ -68,3 +68,13 @@ INSERT INTO app_settings (key, value) VALUES
     ('fallback_mu_essential', '3.15'),
     ('fallback_sarf', '1.5')
 ON CONFLICT (key) DO NOTHING;
+
+-- Tema Plan giris ekraninin varsayilan kategori kumesi.
+-- Kaynak: RangeSayacv3_yeni_taslakv2.xlsx'teki marka bazinda distinct urun
+-- gruplari (IPEKYOL 15, TWIST 17 = IPEKYOL + TAYT + BUSTIYER).
+INSERT INTO ref_marka_kategori (brand_id, sub_category_id) VALUES
+    (4,12),(4,13),(4,14),(4,17),(4,18),(4,19),(4,20),(4,21),
+    (4,22),(4,23),(4,25),(4,26),(4,27),(4,49),(4,50),
+    (8,12),(8,13),(8,14),(8,17),(8,18),(8,19),(8,20),(8,21),
+    (8,22),(8,23),(8,25),(8,26),(8,27),(8,45),(8,46),(8,49),(8,50)
+ON CONFLICT (brand_id, sub_category_id) DO NOTHING;
