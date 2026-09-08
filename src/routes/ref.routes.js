@@ -207,6 +207,28 @@ router.get('/ref/koleksiyon-tipi', async (req, res) => {
 
 /**
  * @swagger
+ * /api/ref/theme:
+ *   get:
+ *     summary: >
+ *       Tema listesi (PLM Theme entity) — Tema Plan icin. theme_id DB
+ *       anahtaridir; ad PLM tema adidir (veri girisinde secilir); kisa_ad
+ *       planlamacinin raporlarda gorunen kisa adidir; pid ise temanin IDM
+ *       PID'sidir (Alt_Sezon bu PID uzerinden cozulur).
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Basarili
+ */
+router.get('/ref/theme', async (req, res) => {
+  try {
+    res.json(await refService.listTheme());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
  * /api/ref/ext-field-dropdown:
  *   get:
  *     summary: >
@@ -275,14 +297,16 @@ router.post('/ref/alt-kategori', async (req, res) => {
  */
 router.post('/ref/sync-from-plm', async (req, res) => {
   try {
-    const [lookups, altSezon, cluster, extFieldDropDown] = await Promise.all([
+    const [lookups, altSezon, cluster, extFieldDropDown, themes] = await Promise.all([
       plmLookupService.fetchAllLookups(),
       plmThemeAttributeService.fetchAltSezonValueset(),
       plmThemeAttributeService.fetchClusterValueset(),
-      plmLookupService.fetchExtendedFieldDropDown()
+      plmLookupService.fetchExtendedFieldDropDown(),
+      plmLookupService.fetchThemes()
     ]);
     const result = await refService.syncRefTablesFromPlm({ ...lookups, altSezon, cluster });
     result.extFieldDropDown = await refService.upsertExtFieldDropDown(extFieldDropDown);
+    result.theme = await refService.upsertThemes(themes);
     res.json({ success: true, synced: result });
   } catch (err) {
     res.status(500).json({ error: err.message });

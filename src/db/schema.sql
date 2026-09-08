@@ -259,3 +259,52 @@ CREATE UNIQUE INDEX IF NOT EXISTS range_plan_parametreleri_key
         brand_id, sub_category_id, ext_fld_id, drop_down_value,
         COALESCE(cud5_id, -1), season_id, COALESCE(alt_sezon, ''), COALESCE(life_style_grup, '')
     );
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- TEMA REFERANSI (PLM Theme entity'si; GenericLookUpAll'da karşılığı yok)
+--   ad      = PLM Theme.Name (örn. "SS 27_IPK_B_SCT1") — veri girişinde seçilen
+--   kisa_ad = planlamacının kısa adı (örn. "B-SCT1") — raporlarda görünen
+--   pid     = Theme.Description (IDM PID), tema Alt_Sezon'u bundan çözülür
+-- PLM senkronizasyonu yalnız ad/code/pid'i günceller; kisa_ad PLM'de olmadığı
+-- için burada korunur (plan satırı kaydedilirken güncellenir).
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ref_theme (
+    theme_id    INTEGER PRIMARY KEY,
+    ad          TEXT NOT NULL,
+    kisa_ad     TEXT,
+    code        TEXT,
+    pid         TEXT
+);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- TEMA PLAN PARAMETRELERI (kaynak: RangeSayacv3_yeni_taslakv2.xlsx)
+-- IpekyolRangeSayac "theme-category" servisinin plan kaynağı. Her satır bir
+-- (tema × kategori) kırılımı + planlanan "Opt Say" adedidir.
+-- Eşleştirme anahtarı o servisin _makeKey'i ile birebir aynıdır:
+--   (theme_id, sub_category_id, season_id, alt_sezon)
+-- theme_id NULL olabilir (tema henüz açılmamış); o satırlar eşleştirmeye
+-- girmez, çıktıda gOpt=0 görünür. NULL'ların anahtarda tutarlı davranması
+-- için COALESCE'li UNIQUE index kullanılır.
+-- free_field_three (Faz) eşleştirmeye girmez, yalnızca çıktı/etikettir.
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS theme_plan_parametreleri (
+    id                  SERIAL PRIMARY KEY,
+    marka               TEXT,               -- MARKA (etiket)
+    brand_id            INTEGER NOT NULL,   -- BrandId
+    season_id           INTEGER NOT NULL,   -- SeasonId
+    free_field_three    TEXT,               -- FreeFieldThree (Faz, örn. "PLAN")
+    tema_adi            TEXT,               -- Tema Adı (planlamacı kısa adı)
+    theme_id            INTEGER,            -- ThemeId (PLM Theme.Id)
+    kategori            TEXT,               -- Kategori (etiket)
+    sub_category_id     INTEGER NOT NULL,   -- SubCategoryId
+    alt_sezon           TEXT,               -- Alt_Sezon (örn. "SS1")
+    opt_say             INTEGER NOT NULL DEFAULT 0,  -- Opt Say (Excel'de boş = 0)
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_by          TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS theme_plan_parametreleri_key
+    ON theme_plan_parametreleri (
+        COALESCE(theme_id, -1), sub_category_id, season_id, COALESCE(alt_sezon, '')
+    );

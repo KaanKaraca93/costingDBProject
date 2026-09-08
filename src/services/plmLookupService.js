@@ -92,4 +92,32 @@ async function fetchExtendedFieldDropDown() {
   }));
 }
 
-module.exports = { GLREF_IDS, fetchLookup, fetchAllLookups, fetchExtendedFieldDropDown };
+/**
+ * PLM Theme (odata2): Tema Plan (theme-category) tema listesi.
+ * Theme, GenericLookUpAll'da bulunmayan ayri bir entity'dir.
+ *   Id          -> DB anahtari (ThemeId)
+ *   Name        -> PLM tema adi (orn. "SS 27_IPK_B_SCT1"), veri girisinde secilir
+ *   Description -> IDM PID (orn. "Theme_Attributes-397-0-LATEST"); tema
+ *                  Alt_Sezon'u bu PID uzerinden IDM'den cozulur
+ * Status 2 (pasif) temalar da donulur: eski sezon planlari onlara referans
+ * verebilir ve liste kopmamalidir.
+ */
+async function fetchThemes() {
+  const authHeader = await tokenService.getAuthorizationHeader();
+  const url = `${PLM_CONFIG.ionApiUrl}/${PLM_CONFIG.tenantId}/FASHIONPLM/odata2/api/odata2/Theme`;
+
+  const { data } = await axios.get(url, {
+    headers: { Authorization: authHeader, Accept: 'application/json' },
+    params: { '$select': 'Id,Code,Name,Description,Status' }
+  });
+
+  return (data.value || []).map((item) => ({
+    id: item.Id,
+    code: item.Code,
+    name: item.Name,
+    pid: item.Description,
+    status: item.Status
+  }));
+}
+
+module.exports = { GLREF_IDS, fetchLookup, fetchAllLookups, fetchExtendedFieldDropDown, fetchThemes };

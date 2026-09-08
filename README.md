@@ -34,6 +34,8 @@ Uygulama varsayılan olarak `http://localhost:3000` üzerinde çalışır.
 | `on_adet_parametreleri` | Marka + Bölüm + Kategori + Alt Kategori + Cluster + LifeStyle Grubu + Sezon + Alt Sezon kırılımına göre Adet değeri |
 | `option_plan_parametreleri` | **RangeSayac v6.2** plan kaynağı (eski `RangeSayacv6_2.xlsx`). Her satır planlanan bir opsiyon; **Opsiyon Kodu (PH####) sistem tarafından otomatik/sıralı üretilir** (kullanıcı/Excel girmez). Boyutlar PLM lookup'larından çözümlenir: Marka(1)/Ürün Grubu=SubCategory(65)/Ürün Alt Grup=SubSubCategory(69)/Fashion Pyramid=CUD1(224)/Life Style Grup=CUD4(227)/Koleksiyon Tipi=CUD5(228)/Segment(232)/Sezon(58)/Alt Sezon. |
 | `range_plan_parametreleri` | **RangeSayac v7.2** plan kaynağı (eski `Rangesayacv7_2.xlsx`). Range detay/dropdown planı + `Option Say`. `Range`=Extended Field adı → sabit `ExtFldId`; `Range Detayı`=PLM `ExtendedFieldDropDown` değeri → `DropDownValue` (=ExtFldDropDownId), `(ExtFldId + Name)` çifti ile çözümlenir. Anahtar RangeSayac `makeKey` ile aynı. |
+| `theme_plan_parametreleri` | **RangeSayac theme-category** plan kaynağı (eski `RangeSayacv3_yeni_taslakv2.xlsx`). Her satır bir (tema × kategori) kırılımı + planlanan `Opt Say`. Anahtar, o servisin `_makeKey`'i ile aynı: `(theme_id, sub_category_id, season_id, alt_sezon)`. `theme_id` boş olabilir (tema henüz açılmamış) — bu satırlar eşleştirmeye girmez. |
+| `ref_theme` | Tema referansı (PLM `Theme` entity; GenericLookUpAll'da yoktur). `ad` = PLM tema adı (`SS 27_IPK_B_SCT1`), `kisa_ad` = planlamacının raporlarda görünen kısa adı (`B-SCT1`), `pid` = IDM PID. PLM senkronu `kisa_ad`'ı **ezmez**. |
 | `ref_fashion_pyramid` / `ref_koleksiyon_tipi` / `ref_ext_field_dropdown` | Option/Range plan dropdown kaynakları; `POST /api/ref/sync-from-plm` ile PLM'den doldurulur. |
 | `app_settings` | Kırılıma göre değişmeyen global ayarlar (örn. `kdv_orani`, fallback değerleri) |
 
@@ -58,6 +60,41 @@ içe aktarma doğrula/uygula):
 > **Not:** Aşağıdaki "ID kolonu" değişikliği yalnızca Excel şablonunu ve
 > `import/*` uçlarını etkiler; `?format=plan` çıktısına ID kolonu **eklenmemiştir**,
 > yani RangeSayac tarafında hiçbir değişiklik gerekmez.
+
+### Tema Plan API'leri (RangeSayac `theme-category` entegrasyonu)
+
+| İşlem | Tema Plan |
+|---|---|
+| Liste (DB satırları) | `GET /api/theme-plan-parametreleri` |
+| **Plan çıktısı (Excel kolon adları)** | `GET /api/theme-plan-parametreleri?format=plan` |
+| Excel şablon | `GET /api/theme-plan-parametreleri/template` |
+| İçe aktar (doğrula/uygula) | `POST .../import/validate` · `POST .../import/commit` |
+| CRUD | `POST/PUT/DELETE /api/theme-plan-parametreleri/[:id]` |
+| Tema listesi (dropdown) | `GET /api/ref/theme` |
+
+Filtreler: `brandId`, `seasonId`, `altSezon`, `themeId`, `subCategoryId`.
+
+**Tema adı iki ayrı alandır.** PLM'deki tema adı (`SS 27_IPK_B_SCT1`) ile
+planlamacının kullandığı kısa ad (`B-SCT1`) aynı değildir ve kısa ad PLM'den
+türetilemez. Bu yüzden:
+
+* Veri girişinde tema **PLM adıyla** seçilir → `theme_id` yazılır.
+* Raporlarda görünen kısa ad `tema_adi` kolonunda satırla birlikte saklanır ve
+  ayrıca `ref_theme.kisa_ad`'a yazılır (tema ile 1:1'dir, sonraki girişlerde
+  otomatik önerilir). Excel şablonunda "Tema Kısa Ad" boş bırakılırsa temanın
+  bilinen kısa adı kullanılır.
+* `?format=plan` çıktısındaki `Tema Adı` **kısa addır** — RangeSayac'ın
+  `theme-category` çıktısı ve ona bağlı raporlama widget'ları böylece hiç
+  değişmez.
+
+**Bir kerelik veri aktarımı** (eski Excel'den):
+
+```bash
+DATABASE_URL=... node scripts/import-tema-plan.js /yol/RangeSayacv3_yeni_taslakv2.xlsx --kuru   # önizleme
+DATABASE_URL=... node scripts/import-tema-plan.js /yol/RangeSayacv3_yeni_taslakv2.xlsx          # yaz
+```
+
+Kırılıma göre upsert eder; tekrar çalıştırılabilir, kopya oluşturmaz.
 
 ### Excel şablonundaki `ID` kolonu (Ön Adet / Option Plan / Range Plan)
 

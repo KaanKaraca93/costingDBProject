@@ -62,6 +62,13 @@ async function listExtFieldDropDown() {
   return rows;
 }
 
+async function listTheme() {
+  const { rows } = await pool.query(
+    'SELECT theme_id, ad, kisa_ad, code, pid FROM ref_theme ORDER BY ad'
+  );
+  return rows;
+}
+
 async function upsertAltKategori(altKategoriId, ad) {
   await pool.query(
     `INSERT INTO ref_alt_kategori (alt_kategori_id, ad) VALUES ($1, $2)
@@ -146,6 +153,34 @@ async function upsertExtFieldDropDown(items) {
   return (items || []).length;
 }
 
+/**
+ * PLM Theme entity'si ayri semali (theme_id, ad, kisa_ad, code, pid); generic
+ * upsertRefItems'e uymaz. kisa_ad PLM'de bulunmadigi icin ASLA ezilmez:
+ * planlamacinin girdigi kisa ad senkronizasyonda korunur.
+ */
+async function upsertThemes(items) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const item of items || []) {
+      await client.query(
+        `INSERT INTO ref_theme (theme_id, ad, code, pid)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (theme_id)
+         DO UPDATE SET ad = EXCLUDED.ad, code = EXCLUDED.code, pid = EXCLUDED.pid`,
+        [item.id, item.name, item.code || null, item.pid || null]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return (items || []).length;
+}
+
 async function getSetting(key) {
   const { rows } = await pool.query('SELECT value FROM app_settings WHERE key = $1', [key]);
   return rows[0] ? rows[0].value : null;
@@ -177,9 +212,11 @@ module.exports = {
   listFashionPyramid,
   listKoleksiyonTipi,
   listExtFieldDropDown,
+  listTheme,
   upsertAltKategori,
   syncRefTablesFromPlm,
   upsertExtFieldDropDown,
+  upsertThemes,
   getSetting,
   setSetting,
   listSettings
