@@ -307,6 +307,17 @@ router.post('/ref/sync-from-plm', async (req, res) => {
     const result = await refService.syncRefTablesFromPlm({ ...lookups, altSezon, cluster });
     result.extFieldDropDown = await refService.upsertExtFieldDropDown(extFieldDropDown);
     result.theme = await refService.upsertThemes(themes);
+
+    // Temanin Alt_Sezon'u OData'da degil IDM'de (tema PID'si altinda) durur ve
+    // tema basina bir cagri gerektirir. Bu yuzden yalnizca HENUZ BILINMEYEN
+    // temalar icin cozulur: ilk senkron ~10 sn surer, sonrakiler neredeyse bedava.
+    const eksik = await refService.listThemesMissingAltSezon();
+    if (eksik.length) {
+      const cozulen = await plmThemeAttributeService.fetchAltSezonForThemes(eksik);
+      result.themeAltSezon = await refService.updateThemeAltSezonlar(cozulen);
+    } else {
+      result.themeAltSezon = 0;
+    }
     res.json({ success: true, synced: result });
   } catch (err) {
     res.status(500).json({ error: err.message });

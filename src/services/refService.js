@@ -64,7 +64,7 @@ async function listExtFieldDropDown() {
 
 async function listTheme() {
   const { rows } = await pool.query(
-    'SELECT theme_id, ad, kisa_ad, code, pid FROM ref_theme ORDER BY ad'
+    'SELECT theme_id, ad, kisa_ad, code, pid, alt_sezon FROM ref_theme ORDER BY ad'
   );
   return rows;
 }
@@ -181,6 +181,38 @@ async function upsertThemes(items) {
   return (items || []).length;
 }
 
+/**
+ * Alt_Sezon'u henuz cozulmemis (NULL) ve PID'si olan temalari doner.
+ * Senkronizasyonda yalnizca bunlar icin IDM'e gidilir.
+ */
+async function listThemesMissingAltSezon() {
+  const { rows } = await pool.query(
+    `SELECT theme_id, pid FROM ref_theme
+     WHERE alt_sezon IS NULL AND pid IS NOT NULL AND pid <> ''`
+  );
+  return rows.map((r) => ({ themeId: r.theme_id, pid: r.pid }));
+}
+
+/** IDM'den cozulen Alt_Sezon degerlerini ref_theme'e yazar. */
+async function updateThemeAltSezonlar(items) {
+  const dolu = (items || []).filter((i) => i.altSezon != null && i.altSezon !== '');
+  if (dolu.length === 0) return 0;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const it of dolu) {
+      await client.query('UPDATE ref_theme SET alt_sezon = $2 WHERE theme_id = $1', [it.themeId, it.altSezon]);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return dolu.length;
+}
+
 async function getSetting(key) {
   const { rows } = await pool.query('SELECT value FROM app_settings WHERE key = $1', [key]);
   return rows[0] ? rows[0].value : null;
@@ -217,6 +249,8 @@ module.exports = {
   syncRefTablesFromPlm,
   upsertExtFieldDropDown,
   upsertThemes,
+  listThemesMissingAltSezon,
+  updateThemeAltSezonlar,
   getSetting,
   setSetting,
   listSettings

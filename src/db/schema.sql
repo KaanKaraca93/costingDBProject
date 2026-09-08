@@ -276,6 +276,12 @@ CREATE TABLE IF NOT EXISTS ref_theme (
     pid         TEXT
 );
 
+-- Temanin Alt_Sezon'u PLM OData'da yok; IDM'de temanin PID'si altinda bir
+-- attribute olarak durur (RangeSayac da eslestirmede bunu kullanir). Plan
+-- satirinda kullanicinin elle girmesi hem gereksiz hem hata kaynagi oldugu
+-- icin tema senkronunda cozulup burada saklanir ve giriste otomatik gelir.
+ALTER TABLE ref_theme ADD COLUMN IF NOT EXISTS alt_sezon TEXT;
+
 -- ─────────────────────────────────────────────────────────────────────────
 -- TEMA PLAN PARAMETRELERI (kaynak: RangeSayacv3_yeni_taslakv2.xlsx)
 -- IpekyolRangeSayac "theme-category" servisinin plan kaynağı. Her satır bir
