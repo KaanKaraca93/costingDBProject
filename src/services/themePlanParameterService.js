@@ -59,9 +59,13 @@ async function listParameters(filters = {}) {
   addFilter('theme_id', filters.themeId);
   addFilter('sub_category_id', filters.subCategoryId);
 
+  // Sıra ekleme sırasıdır (p.id). Kırılıma göre sıralamak, RangeSayac
+  // theme-category çıktısının satır sırasını eski Excel'inkinden farklı
+  // yapıyordu; plan satırları Excel'den bu sırayla aktarıldığı için p.id
+  // eski çıktıyı birebir korur. Yeni girilen tema satırları sona eklenir.
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const { rows } = await pool.query(
-    `${BASE_SELECT} ${where} ORDER BY p.brand_id, p.season_id, p.theme_id, p.sub_category_id`,
+    `${BASE_SELECT} ${where} ORDER BY p.id`,
     values
   );
   return rows;
