@@ -36,6 +36,8 @@ Uygulama varsayılan olarak `http://localhost:3000` üzerinde çalışır.
 | `range_plan_parametreleri` | **RangeSayac v7.2** plan kaynağı (eski `Rangesayacv7_2.xlsx`). Range detay/dropdown planı + `Option Say`. `Range`=Extended Field adı → sabit `ExtFldId`; `Range Detayı`=PLM `ExtendedFieldDropDown` değeri → `DropDownValue` (=ExtFldDropDownId), `(ExtFldId + Name)` çifti ile çözümlenir. Anahtar RangeSayac `makeKey` ile aynı. |
 | `theme_plan_parametreleri` | **RangeSayac theme-category** plan kaynağı (eski `RangeSayacv3_yeni_taslakv2.xlsx`). Her satır bir (tema × kategori) kırılımı + planlanan `Opt Say`. Anahtar, o servisin `_makeKey`'i ile aynı: `(theme_id, sub_category_id, season_id, alt_sezon)`. `theme_id` boş olabilir (tema henüz açılmamış) — bu satırlar eşleştirmeye girmez. |
 | `ref_theme` | Tema referansı (PLM `Theme` entity; GenericLookUpAll'da yoktur). `ad` = PLM tema adı (`SS 27_IPK_B_SCT1`), `kisa_ad` = planlamacının raporlarda görünen kısa adı (`B-SCT1`), `pid` = IDM PID. PLM senkronu `kisa_ad`'ı **ezmez**. |
+| `delivery_plan_parametreleri` | **Delivery Plan**: Marka + Division + Sezon + Alt Sezon + Deliveries kırılımında planlanan `option_say` (unique constraint ile korunur). Gerçekleşen hesabını yapan widget planı `?format=plan` ile buradan okur. |
+| `ref_delivery` | Deliveries listesi (PLM GenericLookUpAll **GlrefId 76**, örn. 1=LOCAL, 2=PRODUCTION, 4=OVERSEAS). Style tarafında `StyleDeliveries.DeliveryId` / `Style.DeliveryIdList` ile karşılaşır. |
 | `ref_fashion_pyramid` / `ref_koleksiyon_tipi` / `ref_ext_field_dropdown` | Option/Range plan dropdown kaynakları; `POST /api/ref/sync-from-plm` ile PLM'den doldurulur. |
 | `app_settings` | Kırılıma göre değişmeyen global ayarlar (örn. `kdv_orani`, fallback değerleri) |
 
@@ -95,6 +97,44 @@ DATABASE_URL=... node scripts/import-tema-plan.js /yol/RangeSayacv3_yeni_taslakv
 ```
 
 Kırılıma göre upsert eder; tekrar çalıştırılabilir, kopya oluşturmaz.
+
+### Delivery Plan API'leri
+
+Marka / Division / Sezon / Alt Sezon / Deliveries kırılımında planlanan opsiyon
+sayısı. Ön Adet ile aynı prensip: DB'de yalnızca PLM ID'leri tutulur, isimler
+`ref_*` tablolarından gelir; kullanıcı ekranda ve Excel'de hep ismi görür.
+
+| Kırılım | Kolon | Ref tablosu | PLM kaynağı |
+|---|---|---|---|
+| Marka | `marka_id` | `ref_marka` | `Style.BrandId` (GlrefId 1) |
+| Division | `division_id` | `ref_bolum` | `Style.DivisionId` (GlrefId 90 — Ön Adet'teki "Bölüm" ile aynı liste) |
+| Sezon | `sezon_id` | `ref_sezon` | `Style.SeasonId` (GlrefId 58) |
+| Alt Sezon | `alt_sezon_code` | `ref_alt_sezon` | Theme_Attributes `Alt_Sezon` (IDM) |
+| Deliveries | `delivery_id` | `ref_delivery` | `StyleDeliveries.DeliveryId` (GlrefId 76) |
+
+| İşlem | Uç |
+|---|---|
+| Liste (DB satırları, isimlerle) | `GET /api/delivery-plan-parametreleri` |
+| **Plan çıktısı (gerçekleşen widget'ı için)** | `GET /api/delivery-plan-parametreleri?format=plan` |
+| Excel şablon | `GET .../template` |
+| İçe aktar (doğrula/uygula) | `POST .../import/validate` · `POST .../import/commit` |
+| CRUD | `POST/PUT/DELETE /api/delivery-plan-parametreleri/[:id]` |
+| Deliveries listesi | `GET /api/ref/delivery` |
+
+Filtreler: `markaId` (veya `brandId`), `divisionId`, `sezonId` (veya `seasonId`),
+`altSezonCode` (veya `altSezon`), `deliveryId`.
+
+`?format=plan` satırı PLM Style alan adlarıyla döner, eşleştirme anahtarı
+doğrudan kurulabilir:
+
+```json
+{ "Marka": "Ipekyol", "BrandId": 4, "Division": "TEKSTIL", "DivisionId": 6,
+  "Sezon": "SS 27", "SeasonId": 11, "Alt_Sezon": "SS1",
+  "Delivery": "OVERSEAS", "DeliveryId": 4, "Option Say": 120 }
+```
+
+Deliveries listesi `POST /api/ref/sync-from-plm` ile PLM'den güncellenir; ilk
+kurulumda `seed.sql` bilinen üç değeri yazar.
 
 ### Excel şablonundaki `ID` kolonu (Ön Adet / Option Plan / Range Plan)
 

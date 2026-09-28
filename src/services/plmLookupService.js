@@ -17,7 +17,9 @@ const GLREF_IDS = {
   kategori: 65,
   // Option Plan (v6.2) ek kırılımları:
   fashionPyramid: 224, // CUD1
-  koleksiyonTipi: 228  // CUD5 (Excel'de "FT")
+  koleksiyonTipi: 228, // CUD5 (Excel'de "FT")
+  // Delivery Plan kırılımı (Division = bolum, GlrefId 90):
+  delivery: 76         // Deliveries (StyleDeliveries.DeliveryId)
 };
 
 function resolveDisplayName(item) {
@@ -53,7 +55,7 @@ async function fetchLookup(glrefId) {
 }
 
 async function fetchAllLookups() {
-  const [marka, altKategori, lifestyleGrup, segment, sezon, bolum, kategori, fashionPyramid, koleksiyonTipi] = await Promise.all([
+  const [marka, altKategori, lifestyleGrup, segment, sezon, bolum, kategori, fashionPyramid, koleksiyonTipi, delivery] = await Promise.all([
     fetchLookup(GLREF_IDS.marka),
     fetchLookup(GLREF_IDS.altKategori),
     fetchLookup(GLREF_IDS.lifestyleGrup),
@@ -62,10 +64,11 @@ async function fetchAllLookups() {
     fetchLookup(GLREF_IDS.bolum),
     fetchLookup(GLREF_IDS.kategori),
     fetchLookup(GLREF_IDS.fashionPyramid),
-    fetchLookup(GLREF_IDS.koleksiyonTipi)
+    fetchLookup(GLREF_IDS.koleksiyonTipi),
+    fetchLookup(GLREF_IDS.delivery)
   ]);
 
-  return { marka, altKategori, lifestyleGrup, segment, sezon, bolum, kategori, fashionPyramid, koleksiyonTipi };
+  return { marka, altKategori, lifestyleGrup, segment, sezon, bolum, kategori, fashionPyramid, koleksiyonTipi, delivery };
 }
 
 /**

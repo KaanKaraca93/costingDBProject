@@ -135,6 +135,24 @@ router.get('/ref/bolum', async (req, res) => {
 
 /**
  * @swagger
+ * /api/ref/delivery:
+ *   get:
+ *     summary: Deliveries listesi (PLM GLrefId 76, örn. LOCAL/OVERSEAS/PRODUCTION) — Delivery Plan için
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/delivery', async (req, res) => {
+  try {
+    res.json(await refService.listDelivery());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
  * /api/ref/cluster:
  *   get:
  *     summary: Cluster listesi (PLM Theme_Attributes entity'sinin Cluster valueset'i) — Ön Adet Parametreleri için
@@ -328,7 +346,8 @@ router.put('/ref/marka-kategori/:brandId', async (req, res) => {
  *   post:
  *     summary: Marka/Alt Kategori/Segment/LifeStyle Grubu/Sezon/Alt Sezon listelerini PLM'den senkronize eder
  *     description: >
- *       Marka(1)/Alt Kategori(69)/Segment(232)/LifeStyle Grubu(227)/Sezon(58) PLM'deki
+ *       Marka(1)/Alt Kategori(69)/Segment(232)/LifeStyle Grubu(227)/Sezon(58)/
+ *       Division=Bölüm(90)/Deliveries(76) PLM'deki
  *       GenericLookUpAll (odata2) servisinden GlrefId filtreleriyle çekilir (GlValId DB
  *       anahtarı, varsa tr-tr çevirisi yoksa kök Name gösterim ismidir). Alt Sezon ise bir
  *       lookup değil, PLM'nin Theme_Attributes entity tanımındaki Alt_Sezon alanının sabit

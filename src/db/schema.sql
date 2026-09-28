@@ -337,3 +337,41 @@ CREATE TABLE IF NOT EXISTS ref_marka_kategori (
     sub_category_id INTEGER NOT NULL,
     PRIMARY KEY (brand_id, sub_category_id)
 );
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- DELIVERIES REFERANSI (PLM GenericLookUpAll GlrefId 76, LookUpType "Deliveries")
+-- Anahtar GlValId (örn. 1=LOCAL, 2=PRODUCTION, 4=OVERSEAS). Style tarafında
+-- StyleDeliveries.DeliveryId / Style.DeliveryIdList ile karşılaşır.
+-- Division ayrıca tutulmaz: GlrefId 90 zaten ref_bolum'dur (Style.DivisionId).
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ref_delivery (
+    delivery_id INTEGER PRIMARY KEY,
+    ad          TEXT NOT NULL
+);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- DELIVERY PLAN PARAMETRELERI
+-- Marka + Division + Sezon + Alt Sezon + Deliveries kırılımında planlanan
+-- opsiyon sayısı. Gerçekleşen hesabı ayrı bir widget'ta yapılır; planı bu
+-- tablodan ?format=plan ile okur.
+-- Tüm boyutlar PLM ID'si olarak tutulur, isimler ref_* tablolarından gelir:
+--   marka_id       -> ref_marka      (Style.BrandId,    GlrefId 1)
+--   division_id    -> ref_bolum      (Style.DivisionId, GlrefId 90)
+--   sezon_id       -> ref_sezon      (Style.SeasonId,   GlrefId 58)
+--   alt_sezon_code -> ref_alt_sezon  (Theme_Attributes.Alt_Sezon, IDM)
+--   delivery_id    -> ref_delivery   (StyleDeliveries.DeliveryId, GlrefId 76)
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS delivery_plan_parametreleri (
+    id                  SERIAL PRIMARY KEY,
+    marka_id            INTEGER NOT NULL,
+    division_id         INTEGER NOT NULL,
+    sezon_id            INTEGER NOT NULL,
+    alt_sezon_code      TEXT NOT NULL,
+    delivery_id         INTEGER NOT NULL,
+    option_say          INTEGER NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_by          TEXT,
+    CONSTRAINT delivery_plan_parametreleri_unique_kirilim
+        UNIQUE (marka_id, division_id, sezon_id, alt_sezon_code, delivery_id)
+);

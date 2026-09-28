@@ -38,6 +38,7 @@ ise PLM Theme_Attributes entity'sinin sabit valueset'inden çeker.
       { name: 'Ön Adet Parametreleri', description: 'Marka/Bölüm/Alt Kategori/Cluster/LifeStyle Grubu/Sezon/Alt Sezon kırılımına göre Adet kayıtları (CRUD)' },
       { name: 'Option Plan Parametreleri', description: 'RangeSayac v6.2 plan kaynağı (opsiyon placeholder listesi). CRUD + Excel + ?format=plan ile RangeSayacv6_2.xlsx kolon adları' },
       { name: 'Range Plan Parametreleri', description: 'RangeSayac v7.2 plan kaynağı (range detay/dropdown planı). CRUD + Excel + ?format=plan ile Rangesayacv7_2.xlsx kolon adları' },
+      { name: 'Delivery Plan Parametreleri', description: 'Marka/Division/Sezon/Alt Sezon/Deliveries kırılımında planlanan Option Say. CRUD + Excel + ?format=plan ile gerçekleşen widget plan kaynağı' },
       { name: 'Referans Veriler', description: 'Dropdown isim listeleri ve PLM senkronizasyonu' },
       { name: 'Ayarlar', description: 'Kırılıma bağlı olmayan global ayarlar (kdv_orani vb.)' },
       { name: 'Token', description: 'PLM/ION OAuth2.0 token yönetimi (tanı/entegrasyon amaçlı)' }
@@ -71,6 +72,19 @@ ise PLM Theme_Attributes entity'sinin sabit valueset'inden çeker.
             sezonId: { type: 'integer', example: 12 },
             altSezonCode: { type: 'string', example: 'FW1' },
             adet: { type: 'integer', example: 250 }
+          }
+        },
+        DeliveryPlanParameterInput: {
+          type: 'object',
+          required: ['markaId', 'divisionId', 'sezonId', 'altSezonCode', 'deliveryId', 'optionSay'],
+          properties: {
+            markaId: { type: 'integer', example: 4, description: 'PLM BrandId (ref_marka)' },
+            divisionId: { type: 'integer', example: 6, description: 'PLM DivisionId (ref_bolum, GlrefId 90)' },
+            sezonId: { type: 'integer', example: 12, description: 'PLM SeasonId (ref_sezon)' },
+            altSezonCode: { type: 'string', example: 'SS1', description: 'Theme_Attributes Alt_Sezon (ref_alt_sezon)' },
+            deliveryId: { type: 'integer', example: 4, description: 'PLM DeliveryId (ref_delivery, GlrefId 76)' },
+            optionSay: { type: 'integer', example: 120 },
+            updatedBy: { type: 'string', example: 'kaan' }
           }
         },
         TokenResponse: {

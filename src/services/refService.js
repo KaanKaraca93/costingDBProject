@@ -45,6 +45,11 @@ async function listKategori() {
   return rows;
 }
 
+async function listDelivery() {
+  const { rows } = await pool.query('SELECT delivery_id, ad FROM ref_delivery ORDER BY delivery_id');
+  return rows;
+}
+
 async function listFashionPyramid() {
   const { rows } = await pool.query('SELECT id, ad FROM ref_fashion_pyramid ORDER BY ad');
   return rows;
@@ -88,7 +93,8 @@ const REF_TABLE_CONFIG = {
   cluster: { table: 'ref_cluster', idColumn: 'cluster_code' },
   kategori: { table: 'ref_kategori', idColumn: 'kategori_id' },
   fashionPyramid: { table: 'ref_fashion_pyramid', idColumn: 'id' },
-  koleksiyonTipi: { table: 'ref_koleksiyon_tipi', idColumn: 'id' }
+  koleksiyonTipi: { table: 'ref_koleksiyon_tipi', idColumn: 'id' },
+  delivery: { table: 'ref_delivery', idColumn: 'delivery_id' }
 };
 
 async function upsertRefItems(type, items) {
@@ -290,6 +296,7 @@ module.exports = {
   listBolum,
   listCluster,
   listKategori,
+  listDelivery,
   listFashionPyramid,
   listKoleksiyonTipi,
   listExtFieldDropDown,

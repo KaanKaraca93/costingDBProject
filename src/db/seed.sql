@@ -48,6 +48,13 @@ INSERT INTO ref_bolum (bolum_id, ad) VALUES
     (10, 'SET URUN')
 ON CONFLICT (bolum_id) DO NOTHING;
 
+-- Deliveries (GlrefId 76): PLM GenericLookUpAll'dan doğrulanmış değerler.
+INSERT INTO ref_delivery (delivery_id, ad) VALUES
+    (1, 'LOCAL'),
+    (2, 'PRODUCTION'),
+    (4, 'OVERSEAS')
+ON CONFLICT (delivery_id) DO NOTHING;
+
 INSERT INTO ref_cluster (cluster_code, ad) VALUES
     ('008', 'Diğer'),
     ('013', 'B'),
