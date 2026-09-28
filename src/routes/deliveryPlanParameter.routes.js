@@ -3,6 +3,7 @@ const router = express.Router();
 const service = require('../services/deliveryPlanParameterService');
 const importExportService = require('../services/deliveryPlanImportExportService');
 const { describeDbError } = require('../services/dbErrors');
+const { gerceklesenTedarikKaynagiId } = require('../config/tedarikKaynagi');
 
 function validateBody(body) {
   const { markaId, divisionId, sezonId, altSezonCode, deliveryId, optionSay } = body;
@@ -16,6 +17,9 @@ function validateBody(body) {
   if (!Number.isInteger(n) || n < 0) {
     return 'optionSay sıfır veya pozitif tam sayı olmalıdır.';
   }
+  if (gerceklesenTedarikKaynagiId(deliveryId) == null) {
+    return `Tedarik Kaynağı #${deliveryId} için Gerçekleşen Tedarik Kaynağı eşleşmesi tanımlı değil (src/config/tedarikKaynagi.js).`;
+  }
   return null;
 }
 
@@ -24,8 +28,11 @@ function validateBody(body) {
  * /api/delivery-plan-parametreleri:
  *   get:
  *     summary: >
- *       Delivery Plan listesi (Marka/Division/Sezon/Alt Sezon/Deliveries kırılımında Option Say).
- *       ?format=plan => gerçekleşen widget'ının okuduğu plan çıktısı (BrandId/DivisionId/SeasonId/Alt_Sezon/DeliveryId + isimler + Option Say).
+ *       Delivery Plan listesi (Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı kırılımında Option Say).
+ *       ?format=plan => gerçekleşen widget'ının okuduğu plan çıktısı (BrandId/DivisionId/SeasonId/Alt_Sezon/DeliveryId
+ *       + GerceklesenTedarikKaynagiId + isimler + Option Say). DeliveryId Planlanan Tedarik Kaynağı'dır;
+ *       GerceklesenTedarikKaynagiId, GerceklesenTedarikSekli extended field'ının dropdown değeridir ve
+ *       API tarafından DeliveryId'den türetilir (kullanıcı girmez).
  *     tags: [Delivery Plan Parametreleri]
  *     parameters:
  *       - { in: query, name: format, schema: { type: string, enum: [plan] } }
@@ -33,14 +40,15 @@ function validateBody(body) {
  *       - { in: query, name: divisionId, schema: { type: integer } }
  *       - { in: query, name: sezonId, description: 'seasonId de kabul edilir', schema: { type: integer } }
  *       - { in: query, name: altSezonCode, description: 'altSezon da kabul edilir', schema: { type: string } }
- *       - { in: query, name: deliveryId, schema: { type: integer } }
+ *       - { in: query, name: deliveryId, description: 'Planlanan Tedarik Kaynağı (Deliveries)', schema: { type: integer } }
+ *       - { in: query, name: gerceklesenTedarikKaynagiId, description: 'Gerçekleşen Tedarik Kaynağı (GerceklesenTedarikSekli dropdown)', schema: { type: integer } }
  *     responses:
  *       200: { description: Başarılı }
  */
 router.get('/delivery-plan-parametreleri', async (req, res) => {
   try {
-    const { markaId, brandId, divisionId, sezonId, seasonId, altSezonCode, altSezon, deliveryId, format } = req.query;
-    const filters = { markaId, brandId, divisionId, sezonId, seasonId, altSezonCode, altSezon, deliveryId };
+    const { markaId, brandId, divisionId, sezonId, seasonId, altSezonCode, altSezon, deliveryId, gerceklesenTedarikKaynagiId, format } = req.query;
+    const filters = { markaId, brandId, divisionId, sezonId, seasonId, altSezonCode, altSezon, deliveryId, gerceklesenTedarikKaynagiId };
     if (format === 'plan') {
       return res.json(await service.listPlan(filters));
     }
@@ -213,7 +221,7 @@ router.post('/delivery-plan-parametreleri', async (req, res) => {
 
     const existing = await service.findByKey(req.body);
     if (existing) {
-      return res.status(409).json({ error: 'Bu marka/division/sezon/alt sezon/deliveries kombinasyonu zaten mevcut.', existingId: existing.id });
+      return res.status(409).json({ error: 'Bu marka/ana kategori/sezon/alt sezon/tedarik kaynağı kombinasyonu zaten mevcut.', existingId: existing.id });
     }
 
     const created = await service.createParameter(req.body, req.body.updatedBy);

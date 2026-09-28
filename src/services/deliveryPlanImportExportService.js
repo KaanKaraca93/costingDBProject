@@ -1,6 +1,7 @@
 const ExcelJS = require('exceljs');
 const refService = require('./refService');
 const deliveryPlanParameterService = require('./deliveryPlanParameterService');
+const { gerceklesenTedarikKaynagiId } = require('../config/tedarikKaynagi');
 const {
   ID_COLUMN, norm, resolveColumnPositions, readRowTexts,
   interpretIdCell, decorateIdColumn, resolveKeyConflicts, summarize
@@ -14,23 +15,25 @@ const OPTION_SAY_MAX = 100000;
 
 /**
  * Ön Adet Excel akışıyla (onAdetImportExportService.js) aynı mantık; farkı
- * Marka/Division/Sezon/Alt Sezon/Deliveries kırılımı ve tek tam sayı değer
+ * Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı kırılımı ve tek tam sayı değer
  * alanının Option Say olması.
  *
  * İlk kolon ID'dir (bkz. importSheetUtils): satır eşleştirmesi kırılıma göre
  * değil, birincil anahtara göre yapılır. Böylece Excel'den bir satırın kırılımı
  * da değiştirilebilir; kopya satır oluşmaz.
  *
- * Division'ın ref listesi ref_bolum'dur (anahtar bolum_id), plan satırında ise
- * kolon adı division_id'dir; rowIdKey bu farkı taşır.
+ * Ana Kategori = PLM Division; ref listesi ref_bolum'dur (anahtar bolum_id), plan
+ * satırında ise kolon adı division_id'dir; rowIdKey bu farkı taşır.
+ * Tedarik Kaynağı = Planlanan (Deliveries). Gerçekleşen karşılığı şablonda yoktur,
+ * sunucu türetir; eşleşmesi tanımlı olmayan tedarik kaynağı satırı hatalı sayılır.
  */
 const COLUMN_DEFS = [
   ID_COLUMN,
   { key: 'marka', header: 'Marka', width: 22, kind: 'lookup', refKey: 'marka', idKey: 'marka_id', displayField: 'marka_ad', resolvedKey: 'markaId', namedRange: 'ListMarka' },
-  { key: 'division', header: 'Division', width: 20, kind: 'lookup', refKey: 'division', idKey: 'bolum_id', rowIdKey: 'division_id', displayField: 'division_ad', resolvedKey: 'divisionId', namedRange: 'ListDivision' },
+  { key: 'division', header: 'Ana Kategori', width: 20, kind: 'lookup', refKey: 'division', idKey: 'bolum_id', rowIdKey: 'division_id', displayField: 'division_ad', resolvedKey: 'divisionId', namedRange: 'ListDivision' },
   { key: 'sezon', header: 'Sezon', width: 18, kind: 'lookup', refKey: 'sezon', idKey: 'sezon_id', displayField: 'sezon_ad', resolvedKey: 'sezonId', namedRange: 'ListSezon' },
   { key: 'altSezon', header: 'Alt Sezon', width: 16, kind: 'lookup', refKey: 'altSezon', idKey: 'alt_sezon_code', displayField: 'alt_sezon_ad', resolvedKey: 'altSezonCode', namedRange: 'ListAltSezon' },
-  { key: 'delivery', header: 'Deliveries', width: 18, kind: 'lookup', refKey: 'delivery', idKey: 'delivery_id', displayField: 'delivery_ad', resolvedKey: 'deliveryId', namedRange: 'ListDelivery' },
+  { key: 'delivery', header: 'Tedarik Kaynağı', width: 18, kind: 'lookup', refKey: 'delivery', idKey: 'delivery_id', displayField: 'delivery_ad', resolvedKey: 'deliveryId', namedRange: 'ListDelivery' },
   { key: 'optionSay', header: 'Option Say', width: 12, kind: 'integer', dbField: 'option_say', resolvedKey: 'optionSay', min: OPTION_SAY_MIN, max: OPTION_SAY_MAX }
 ];
 
@@ -179,6 +182,10 @@ function validateSheetRows(sheet, refs, existingRows) {
         resolved[col.resolvedKey] = matches[0];
       }
     });
+
+    if (resolved.deliveryId != null && gerceklesenTedarikKaynagiId(resolved.deliveryId) == null) {
+      errors.push(`Tedarik Kaynağı "${texts.delivery}" için Gerçekleşen Tedarik Kaynağı eşleşmesi tanımlı değil.`);
+    }
 
     const numberColumns = COLUMN_DEFS.filter((c) => c.kind === 'integer');
     numberColumns.forEach((col) => {

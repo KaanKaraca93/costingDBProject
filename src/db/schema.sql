@@ -351,8 +351,8 @@ CREATE TABLE IF NOT EXISTS ref_delivery (
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- DELIVERY PLAN PARAMETRELERI
--- Marka + Division + Sezon + Alt Sezon + Deliveries kırılımında planlanan
--- opsiyon sayısı. Gerçekleşen hesabı ayrı bir widget'ta yapılır; planı bu
+-- Marka + Ana Kategori (Division) + Sezon + Alt Sezon + Tedarik Kaynağı
+-- (Deliveries) kırılımında planlanan opsiyon sayısı. Gerçekleşen hesabı ayrı bir widget'ta yapılır; planı bu
 -- tablodan ?format=plan ile okur.
 -- Tüm boyutlar PLM ID'si olarak tutulur, isimler ref_* tablolarından gelir:
 --   marka_id       -> ref_marka      (Style.BrandId,    GlrefId 1)
@@ -375,3 +375,21 @@ CREATE TABLE IF NOT EXISTS delivery_plan_parametreleri (
     CONSTRAINT delivery_plan_parametreleri_unique_kirilim
         UNIQUE (marka_id, division_id, sezon_id, alt_sezon_code, delivery_id)
 );
+
+-- Gerçekleşen Tedarik Kaynağı: kullanıcı planı yalnızca Deliveries (Planlanan
+-- Tedarik Kaynağı) ile girer; karşılığı olan "GerceklesenTedarikSekli" extended
+-- field dropdown değeri (ExtFldDropDownId) API tarafından türetilip burada
+-- saklanır (bkz. src/config/tedarikKaynagi.js). Plan bu iki anahtara göre
+-- değişmez; gerçekleşen hesabı hangisiyle eşleşeceğini seçebilir.
+ALTER TABLE delivery_plan_parametreleri
+    ADD COLUMN IF NOT EXISTS gerceklesen_tedarik_kaynagi_id INTEGER;
+
+-- Kolon eklenmeden önce girilmiş satırlar için geri doldurma
+-- (src/config/tedarikKaynagi.js ile aynı eşleşme).
+UPDATE delivery_plan_parametreleri
+SET gerceklesen_tedarik_kaynagi_id = CASE delivery_id
+        WHEN 1 THEN 133
+        WHEN 2 THEN 132
+        WHEN 4 THEN 130
+    END
+WHERE gerceklesen_tedarik_kaynagi_id IS NULL;
