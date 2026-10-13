@@ -393,3 +393,36 @@ SET gerceklesen_tedarik_kaynagi_id = CASE delivery_id
         WHEN 4 THEN 130
     END
 WHERE gerceklesen_tedarik_kaynagi_id IS NULL;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Delivery Plan'a Ürün Grubu ve Life Style Grup kırılımı (plan bu iki boyutta
+-- da kırılır):
+--   sub_category_id   -> ref_kategori        (Style.SubCategoryId, GlrefId 65 = "Ürün Grubu")
+--   lifestyle_grup_id -> ref_lifestyle_grup  (colorway ColorwayUserDefinedField4 = CUD4, GlrefId 227)
+-- Kolonlar sonradan eklendiği için DB seviyesinde NULL olabilir (önceden girilmiş
+-- satırlar); API yeni kayıt/güncellemede ikisini de zorunlu tutar.
+-- UNIQUE kırılım yeni kolonları da kapsayacak şekilde yeniden kurulur (idempotent).
+-- ─────────────────────────────────────────────────────────────────────────
+ALTER TABLE delivery_plan_parametreleri ADD COLUMN IF NOT EXISTS sub_category_id INTEGER;
+ALTER TABLE delivery_plan_parametreleri ADD COLUMN IF NOT EXISTS lifestyle_grup_id INTEGER;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'delivery_plan_parametreleri'
+          AND constraint_name = 'delivery_plan_parametreleri_unique_kirilim'
+    ) THEN
+        ALTER TABLE delivery_plan_parametreleri DROP CONSTRAINT delivery_plan_parametreleri_unique_kirilim;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'delivery_plan_parametreleri'
+          AND constraint_name = 'delivery_plan_parametreleri_unique_kirilim_v2'
+    ) THEN
+        ALTER TABLE delivery_plan_parametreleri
+            ADD CONSTRAINT delivery_plan_parametreleri_unique_kirilim_v2
+            UNIQUE (marka_id, division_id, sezon_id, alt_sezon_code, delivery_id, sub_category_id, lifestyle_grup_id);
+    END IF;
+END $$;

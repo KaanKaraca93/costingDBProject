@@ -38,7 +38,7 @@ ise PLM Theme_Attributes entity'sinin sabit valueset'inden çeker.
       { name: 'Ön Adet Parametreleri', description: 'Marka/Bölüm/Alt Kategori/Cluster/LifeStyle Grubu/Sezon/Alt Sezon kırılımına göre Adet kayıtları (CRUD)' },
       { name: 'Option Plan Parametreleri', description: 'RangeSayac v6.2 plan kaynağı (opsiyon placeholder listesi). CRUD + Excel + ?format=plan ile RangeSayacv6_2.xlsx kolon adları' },
       { name: 'Range Plan Parametreleri', description: 'RangeSayac v7.2 plan kaynağı (range detay/dropdown planı). CRUD + Excel + ?format=plan ile Rangesayacv7_2.xlsx kolon adları' },
-      { name: 'Delivery Plan Parametreleri', description: 'Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı kırılımında planlanan Option Say. Gerçekleşen Tedarik Kaynağı arkada türetilir. CRUD + Excel + ?format=plan ile gerçekleşen widget plan kaynağı' },
+      { name: 'Delivery Plan Parametreleri', description: 'Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı/Ürün Grubu/Life Style Grup kırılımında planlanan Option Say. Gerçekleşen Tedarik Kaynağı arkada türetilir. CRUD + Excel + ?format=plan ile gerçekleşen widget plan kaynağı' },
       { name: 'Referans Veriler', description: 'Dropdown isim listeleri ve PLM senkronizasyonu' },
       { name: 'Ayarlar', description: 'Kırılıma bağlı olmayan global ayarlar (kdv_orani vb.)' },
       { name: 'Token', description: 'PLM/ION OAuth2.0 token yönetimi (tanı/entegrasyon amaçlı)' }
@@ -76,13 +76,15 @@ ise PLM Theme_Attributes entity'sinin sabit valueset'inden çeker.
         },
         DeliveryPlanParameterInput: {
           type: 'object',
-          required: ['markaId', 'divisionId', 'sezonId', 'altSezonCode', 'deliveryId', 'optionSay'],
+          required: ['markaId', 'divisionId', 'sezonId', 'altSezonCode', 'deliveryId', 'subCategoryId', 'lifestyleGrupId', 'optionSay'],
           properties: {
             markaId: { type: 'integer', example: 4, description: 'PLM BrandId (ref_marka)' },
             divisionId: { type: 'integer', example: 6, description: 'Ana Kategori = PLM DivisionId (ref_bolum, GlrefId 90)' },
             sezonId: { type: 'integer', example: 12, description: 'PLM SeasonId (ref_sezon)' },
             altSezonCode: { type: 'string', example: 'SS1', description: 'Theme_Attributes Alt_Sezon (ref_alt_sezon)' },
             deliveryId: { type: 'integer', example: 4, description: 'Planlanan Tedarik Kaynağı = PLM DeliveryId (ref_delivery, GlrefId 76). Gerçekleşen karşılığı API tarafından türetilir.' },
+            subCategoryId: { type: 'integer', example: 21, description: 'Ürün Grubu = PLM SubCategoryId (ref_kategori, GlrefId 65)' },
+            lifestyleGrupId: { type: 'integer', example: 3, description: 'Life Style Grup = colorway ColorwayUserDefinedField4 / CUD4 (ref_lifestyle_grup, GlrefId 227)' },
             optionSay: { type: 'integer', example: 120 },
             updatedBy: { type: 'string', example: 'kaan' }
           }

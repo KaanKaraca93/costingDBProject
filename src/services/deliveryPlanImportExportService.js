@@ -15,7 +15,7 @@ const OPTION_SAY_MAX = 100000;
 
 /**
  * Ön Adet Excel akışıyla (onAdetImportExportService.js) aynı mantık; farkı
- * Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı kırılımı ve tek tam sayı değer
+ * Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı/Ürün Grubu/Life Style Grup kırılımı ve tek tam sayı değer
  * alanının Option Say olması.
  *
  * İlk kolon ID'dir (bkz. importSheetUtils): satır eşleştirmesi kırılıma göre
@@ -34,6 +34,8 @@ const COLUMN_DEFS = [
   { key: 'sezon', header: 'Sezon', width: 18, kind: 'lookup', refKey: 'sezon', idKey: 'sezon_id', displayField: 'sezon_ad', resolvedKey: 'sezonId', namedRange: 'ListSezon' },
   { key: 'altSezon', header: 'Alt Sezon', width: 16, kind: 'lookup', refKey: 'altSezon', idKey: 'alt_sezon_code', displayField: 'alt_sezon_ad', resolvedKey: 'altSezonCode', namedRange: 'ListAltSezon' },
   { key: 'delivery', header: 'Tedarik Kaynağı', width: 18, kind: 'lookup', refKey: 'delivery', idKey: 'delivery_id', displayField: 'delivery_ad', resolvedKey: 'deliveryId', namedRange: 'ListDelivery' },
+  { key: 'urunGrubu', header: 'Ürün Grubu', width: 22, kind: 'lookup', refKey: 'kategori', idKey: 'kategori_id', rowIdKey: 'sub_category_id', displayField: 'sub_category_ad', resolvedKey: 'subCategoryId', namedRange: 'ListUrunGrubu' },
+  { key: 'lifestyleGrup', header: 'Life Style Grup', width: 20, kind: 'lookup', refKey: 'lifestyleGrup', idKey: 'lifestyle_grup_id', displayField: 'lifestyle_grup_ad', resolvedKey: 'lifestyleGrupId', namedRange: 'ListLifestyleGrup' },
   { key: 'optionSay', header: 'Option Say', width: 12, kind: 'integer', dbField: 'option_say', resolvedKey: 'optionSay', min: OPTION_SAY_MIN, max: OPTION_SAY_MAX }
 ];
 
@@ -242,6 +244,8 @@ function validateSheetRows(sheet, refs, existingRows) {
       sezon: display.sezon,
       altSezon: display.altSezon,
       delivery: display.delivery,
+      urunGrubu: display.urunGrubu,
+      lifestyleGrup: display.lifestyleGrup,
       optionSay: display.optionSay,
       status,
       errors,
@@ -255,14 +259,16 @@ function validateSheetRows(sheet, refs, existingRows) {
 }
 
 async function fetchAllRefs() {
-  const [marka, division, sezon, altSezon, delivery] = await Promise.all([
+  const [marka, division, sezon, altSezon, delivery, kategori, lifestyleGrup] = await Promise.all([
     refService.listMarka(),
     refService.listBolum(),
     refService.listSezon(),
     refService.listAltSezon(),
-    refService.listDelivery()
+    refService.listDelivery(),
+    refService.listKategori(),
+    refService.listLifestyleGrup()
   ]);
-  return { marka, division, sezon, altSezon, delivery };
+  return { marka, division, sezon, altSezon, delivery, kategori, lifestyleGrup };
 }
 
 async function buildTemplateWorkbookFromDb() {
