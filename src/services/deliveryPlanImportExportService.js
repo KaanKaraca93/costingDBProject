@@ -15,7 +15,7 @@ const OPTION_SAY_MAX = 100000;
 
 /**
  * Ön Adet Excel akışıyla (onAdetImportExportService.js) aynı mantık; farkı
- * Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı/Ürün Grubu/Life Style Grup kırılımı ve tek tam sayı değer
+ * Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı/Ürün Grubu/Life Style Grup/Model Özellik kırılımı ve tek tam sayı değer
  * alanının Option Say olması.
  *
  * İlk kolon ID'dir (bkz. importSheetUtils): satır eşleştirmesi kırılıma göre
@@ -36,6 +36,7 @@ const COLUMN_DEFS = [
   { key: 'delivery', header: 'Tedarik Kaynağı', width: 18, kind: 'lookup', refKey: 'delivery', idKey: 'delivery_id', displayField: 'delivery_ad', resolvedKey: 'deliveryId', namedRange: 'ListDelivery' },
   { key: 'urunGrubu', header: 'Ürün Grubu', width: 22, kind: 'lookup', refKey: 'kategori', idKey: 'kategori_id', rowIdKey: 'sub_category_id', displayField: 'sub_category_ad', resolvedKey: 'subCategoryId', namedRange: 'ListUrunGrubu' },
   { key: 'lifestyleGrup', header: 'Life Style Grup', width: 20, kind: 'lookup', refKey: 'lifestyleGrup', idKey: 'lifestyle_grup_id', displayField: 'lifestyle_grup_ad', resolvedKey: 'lifestyleGrupId', namedRange: 'ListLifestyleGrup' },
+  { key: 'modelOzellik', header: 'Model Özellik', width: 16, kind: 'lookup', refKey: 'modelOzellik', idKey: 'id', rowIdKey: 'model_ozellik_id', displayField: 'model_ozellik_ad', resolvedKey: 'modelOzellikId', namedRange: 'ListModelOzellik' },
   { key: 'optionSay', header: 'Option Say', width: 12, kind: 'integer', dbField: 'option_say', resolvedKey: 'optionSay', min: OPTION_SAY_MIN, max: OPTION_SAY_MAX }
 ];
 
@@ -246,6 +247,7 @@ function validateSheetRows(sheet, refs, existingRows) {
       delivery: display.delivery,
       urunGrubu: display.urunGrubu,
       lifestyleGrup: display.lifestyleGrup,
+      modelOzellik: display.modelOzellik,
       optionSay: display.optionSay,
       status,
       errors,
@@ -259,16 +261,17 @@ function validateSheetRows(sheet, refs, existingRows) {
 }
 
 async function fetchAllRefs() {
-  const [marka, division, sezon, altSezon, delivery, kategori, lifestyleGrup] = await Promise.all([
+  const [marka, division, sezon, altSezon, delivery, kategori, lifestyleGrup, modelOzellik] = await Promise.all([
     refService.listMarka(),
     refService.listBolum(),
     refService.listSezon(),
     refService.listAltSezon(),
     refService.listDelivery(),
     refService.listKategori(),
-    refService.listLifestyleGrup()
+    refService.listLifestyleGrup(),
+    refService.listKoleksiyonTipi()
   ]);
-  return { marka, division, sezon, altSezon, delivery, kategori, lifestyleGrup };
+  return { marka, division, sezon, altSezon, delivery, kategori, lifestyleGrup, modelOzellik };
 }
 
 async function buildTemplateWorkbookFromDb() {

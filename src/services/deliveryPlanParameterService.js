@@ -2,7 +2,8 @@ const pool = require('../config/db');
 const { gerceklesenTedarikKaynagiId } = require('../config/tedarikKaynagi');
 
 // delivery_plan_parametreleri: Marka + Ana Kategori (Division) + Sezon + Alt Sezon +
-// Tedarik Kaynağı (Deliveries) + Ürün Grubu (SubCategory) + Life Style Grup (CUD4)
+// Tedarik Kaynağı (Deliveries) + Ürün Grubu (SubCategory) + Life Style Grup (CUD4) +
+// Model Özellik (CUD5)
 // kırılımında planlanan opsiyon sayısı. Ön Adet ile
 // aynı prensip: DB'de PLM ID'leri tutulur, isimler ref_* tablolarından JOIN ile gelir.
 // gerceklesen_tedarik_kaynagi_id kullanıcıdan alınmaz; delivery_id'den türetilir.
@@ -25,6 +26,8 @@ const BASE_SELECT = `
     rk.ad             AS sub_category_ad,
     p.lifestyle_grup_id,
     rlg.ad            AS lifestyle_grup_ad,
+    p.model_ozellik_id,
+    rmo.ad            AS model_ozellik_ad,
     p.option_say,
     p.created_at,
     p.updated_at,
@@ -37,9 +40,10 @@ const BASE_SELECT = `
   LEFT JOIN ref_delivery rd         ON rd.delivery_id = p.delivery_id
   LEFT JOIN ref_kategori rk         ON rk.kategori_id = p.sub_category_id
   LEFT JOIN ref_lifestyle_grup rlg  ON rlg.lifestyle_grup_id = p.lifestyle_grup_id
+  LEFT JOIN ref_koleksiyon_tipi rmo ON rmo.id = p.model_ozellik_id
 `;
 
-const ORDER_BY = 'ORDER BY p.marka_id, p.sezon_id, p.alt_sezon_code, p.division_id, p.delivery_id, rk.ad, rlg.ad';
+const ORDER_BY = 'ORDER BY p.marka_id, p.sezon_id, p.alt_sezon_code, p.division_id, p.delivery_id, rk.ad, rlg.ad, rmo.ad';
 
 // Filtreler hem kendi adlarıyla (markaId/sezonId/altSezonCode) hem de plan
 // çıktısındaki PLM adlarıyla (brandId/seasonId/altSezon) verilebilir; plan
@@ -60,6 +64,7 @@ async function listParameters(filters = {}) {
   addFilter('gerceklesen_tedarik_kaynagi_id', filters.gerceklesenTedarikKaynagiId);
   addFilter('sub_category_id', filters.subCategoryId);
   addFilter('lifestyle_grup_id', filters.lifestyleGrupId);
+  addFilter('model_ozellik_id', filters.modelOzellikId);
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const { rows } = await pool.query(`${BASE_SELECT} ${where} ${ORDER_BY}`, values);
@@ -71,29 +76,29 @@ async function getParameterById(id) {
   return rows[0] || null;
 }
 
-async function findByKey({ markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId }) {
+async function findByKey({ markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, modelOzellikId }) {
   const { rows } = await pool.query(
     `${BASE_SELECT} WHERE p.marka_id = $1 AND p.division_id = $2 AND p.sezon_id = $3
        AND p.alt_sezon_code = $4 AND p.delivery_id = $5
-       AND p.sub_category_id = $6 AND p.lifestyle_grup_id = $7`,
-    [markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId]
+       AND p.sub_category_id = $6 AND p.lifestyle_grup_id = $7 AND p.model_ozellik_id = $8`,
+    [markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, modelOzellikId]
   );
   return rows[0] || null;
 }
 
 function extractFields(data) {
-  const { markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, optionSay } = data;
-  return [markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, optionSay,
+  const { markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, modelOzellikId, optionSay } = data;
+  return [markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, modelOzellikId, optionSay,
     gerceklesenTedarikKaynagiId(deliveryId)];
 }
 
 const INSERT_COLS = `(marka_id, division_id, sezon_id, alt_sezon_code, delivery_id, sub_category_id, lifestyle_grup_id,
-       option_say, gerceklesen_tedarik_kaynagi_id, updated_by)`;
+       model_ozellik_id, option_say, gerceklesen_tedarik_kaynagi_id, updated_by)`;
 
 async function createParameter(data, updatedBy) {
   const { rows } = await pool.query(
     `INSERT INTO delivery_plan_parametreleri ${INSERT_COLS}
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING id`,
     [...extractFields(data), updatedBy || null]
   );
@@ -104,10 +109,10 @@ async function updateParameter(id, data, updatedBy) {
   const { rowCount } = await pool.query(
     `UPDATE delivery_plan_parametreleri
      SET marka_id = $1, division_id = $2, sezon_id = $3, alt_sezon_code = $4,
-         delivery_id = $5, sub_category_id = $6, lifestyle_grup_id = $7,
-         option_say = $8, gerceklesen_tedarik_kaynagi_id = $9,
-         updated_by = $10, updated_at = now()
-     WHERE id = $11`,
+         delivery_id = $5, sub_category_id = $6, lifestyle_grup_id = $7, model_ozellik_id = $8,
+         option_say = $9, gerceklesen_tedarik_kaynagi_id = $10,
+         updated_by = $11, updated_at = now()
+     WHERE id = $12`,
     [...extractFields(data), updatedBy || null, id]
   );
   if (rowCount === 0) return null;
@@ -123,8 +128,8 @@ async function deleteParameter(id) {
 async function upsertParameter(data, updatedBy) {
   const { rows } = await pool.query(
     `INSERT INTO delivery_plan_parametreleri ${INSERT_COLS}
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     ON CONFLICT (marka_id, division_id, sezon_id, alt_sezon_code, delivery_id, sub_category_id, lifestyle_grup_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     ON CONFLICT (marka_id, division_id, sezon_id, alt_sezon_code, delivery_id, sub_category_id, lifestyle_grup_id, model_ozellik_id)
      DO UPDATE SET option_say = EXCLUDED.option_say,
                    gerceklesen_tedarik_kaynagi_id = EXCLUDED.gerceklesen_tedarik_kaynagi_id,
                    updated_by = EXCLUDED.updated_by, updated_at = now()
@@ -157,6 +162,8 @@ function toPlanShape(row) {
     SubCategoryId: row.sub_category_id,
     'Life Style Grup': row.lifestyle_grup_ad,
     LifeStyleGrupId: row.lifestyle_grup_id, // colorway ColorwayUserDefinedField4 (CUD4)
+    'Model Özellik': row.model_ozellik_ad,
+    ModelOzellikId: row.model_ozellik_id,   // colorway ColorwayUserDefinedField5 (CUD5)
     'Option Say': row.option_say
   };
 }

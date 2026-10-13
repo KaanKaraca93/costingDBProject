@@ -6,12 +6,12 @@ const { describeDbError } = require('../services/dbErrors');
 const { gerceklesenTedarikKaynagiId } = require('../config/tedarikKaynagi');
 
 function validateBody(body) {
-  const { markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, optionSay } = body;
-  if ([markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, optionSay].some((v) => v === undefined || v === null || v === '')) {
-    return 'markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId ve optionSay zorunludur.';
+  const { markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, modelOzellikId, optionSay } = body;
+  if ([markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, modelOzellikId, optionSay].some((v) => v === undefined || v === null || v === '')) {
+    return 'markaId, divisionId, sezonId, altSezonCode, deliveryId, subCategoryId, lifestyleGrupId, modelOzellikId ve optionSay zorunludur.';
   }
   for (const [name, v] of [['markaId', markaId], ['divisionId', divisionId], ['sezonId', sezonId], ['deliveryId', deliveryId],
-    ['subCategoryId', subCategoryId], ['lifestyleGrupId', lifestyleGrupId]]) {
+    ['subCategoryId', subCategoryId], ['lifestyleGrupId', lifestyleGrupId], ['modelOzellikId', modelOzellikId]]) {
     if (!Number.isInteger(Number(v)) || Number(v) <= 0) return `${name} pozitif tam sayı (PLM ID) olmalıdır.`;
   }
   const n = Number(optionSay);
@@ -29,9 +29,9 @@ function validateBody(body) {
  * /api/delivery-plan-parametreleri:
  *   get:
  *     summary: >
- *       Delivery Plan listesi (Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı/Ürün Grubu/Life Style Grup kırılımında Option Say).
+ *       Delivery Plan listesi (Marka/Ana Kategori/Sezon/Alt Sezon/Tedarik Kaynağı/Ürün Grubu/Life Style Grup/Model Özellik kırılımında Option Say).
  *       ?format=plan => gerçekleşen widget'ının okuduğu plan çıktısı (BrandId/DivisionId/SeasonId/Alt_Sezon/DeliveryId
- *       + GerceklesenTedarikKaynagiId + SubCategoryId + LifeStyleGrupId + isimler + Option Say). DeliveryId Planlanan Tedarik Kaynağı'dır;
+ *       + GerceklesenTedarikKaynagiId + SubCategoryId + LifeStyleGrupId + ModelOzellikId + isimler + Option Say). DeliveryId Planlanan Tedarik Kaynağı'dır;
  *       GerceklesenTedarikKaynagiId, GerceklesenTedarikSekli extended field'ının dropdown değeridir ve
  *       API tarafından DeliveryId'den türetilir (kullanıcı girmez).
  *     tags: [Delivery Plan Parametreleri]
@@ -44,6 +44,7 @@ function validateBody(body) {
  *       - { in: query, name: deliveryId, description: 'Planlanan Tedarik Kaynağı (Deliveries)', schema: { type: integer } }
  *       - { in: query, name: subCategoryId, description: 'Ürün Grubu (SubCategory, ref_kategori)', schema: { type: integer } }
  *       - { in: query, name: lifestyleGrupId, description: 'Life Style Grup (colorway CUD4)', schema: { type: integer } }
+ *       - { in: query, name: modelOzellikId, description: 'Model Özellik (colorway CUD5)', schema: { type: integer } }
  *       - { in: query, name: gerceklesenTedarikKaynagiId, description: 'Gerçekleşen Tedarik Kaynağı (GerceklesenTedarikSekli dropdown)', schema: { type: integer } }
  *     responses:
  *       200: { description: Başarılı }
@@ -51,9 +52,9 @@ function validateBody(body) {
 router.get('/delivery-plan-parametreleri', async (req, res) => {
   try {
     const { markaId, brandId, divisionId, sezonId, seasonId, altSezonCode, altSezon, deliveryId, gerceklesenTedarikKaynagiId,
-      subCategoryId, lifestyleGrupId, format } = req.query;
+      subCategoryId, lifestyleGrupId, modelOzellikId, format } = req.query;
     const filters = { markaId, brandId, divisionId, sezonId, seasonId, altSezonCode, altSezon, deliveryId, gerceklesenTedarikKaynagiId,
-      subCategoryId, lifestyleGrupId };
+      subCategoryId, lifestyleGrupId, modelOzellikId };
     if (format === 'plan') {
       return res.json(await service.listPlan(filters));
     }
@@ -226,7 +227,7 @@ router.post('/delivery-plan-parametreleri', async (req, res) => {
 
     const existing = await service.findByKey(req.body);
     if (existing) {
-      return res.status(409).json({ error: 'Bu marka/ana kategori/sezon/alt sezon/tedarik kaynağı/ürün grubu/life style grup kombinasyonu zaten mevcut.', existingId: existing.id });
+      return res.status(409).json({ error: 'Bu marka/ana kategori/sezon/alt sezon/tedarik kaynağı/ürün grubu/life style grup/model özellik kombinasyonu zaten mevcut.', existingId: existing.id });
     }
 
     const created = await service.createParameter(req.body, req.body.updatedBy);

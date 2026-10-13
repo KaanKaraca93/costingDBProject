@@ -426,3 +426,35 @@ BEGIN
             UNIQUE (marka_id, division_id, sezon_id, alt_sezon_code, delivery_id, sub_category_id, lifestyle_grup_id);
     END IF;
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Delivery Plan'a Model Özellik kırılımı:
+--   model_ozellik_id -> ref_koleksiyon_tipi (colorway ColorwayUserDefinedField5 = CUD5,
+--                       GlrefId 228; değerler Standart / Fast Track / Diğer)
+-- Aynı alan Option Plan'da "Koleksiyon Tipi" (Excel'de "FT") adıyla geçer; iş
+-- tarafı (ve Sezon Analiz widget'ı) buna "Model Özellik" der.
+-- Önceki satırlar için NULL olabilir; API zorunlu tutar. UNIQUE v3'e taşınır.
+-- ─────────────────────────────────────────────────────────────────────────
+ALTER TABLE delivery_plan_parametreleri ADD COLUMN IF NOT EXISTS model_ozellik_id INTEGER;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'delivery_plan_parametreleri'
+          AND constraint_name = 'delivery_plan_parametreleri_unique_kirilim_v2'
+    ) THEN
+        ALTER TABLE delivery_plan_parametreleri DROP CONSTRAINT delivery_plan_parametreleri_unique_kirilim_v2;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'delivery_plan_parametreleri'
+          AND constraint_name = 'delivery_plan_parametreleri_unique_kirilim_v3'
+    ) THEN
+        ALTER TABLE delivery_plan_parametreleri
+            ADD CONSTRAINT delivery_plan_parametreleri_unique_kirilim_v3
+            UNIQUE (marka_id, division_id, sezon_id, alt_sezon_code, delivery_id,
+                    sub_category_id, lifestyle_grup_id, model_ozellik_id);
+    END IF;
+END $$;
