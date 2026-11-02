@@ -41,6 +41,11 @@ async function fetchClusterValueset() {
   return fetchEntityAttributeValueset('Theme_Attributes', 'Cluster');
 }
 
+// Tema Koleksiyon Tipi (001 = Ana Koleksiyon ...). Colorway CUD5 ("Model Özellik") ile karıştırılmamalı.
+async function fetchTemaKoleksiyonTipiValueset() {
+  return fetchEntityAttributeValueset('Theme_Attributes', 'Koleksiyon_Tipi');
+}
+
 /**
  * Tema ozelliklerinin IDM'deki alan adlari ve valueset'leri.
  *
@@ -154,6 +159,7 @@ module.exports = {
   fetchEntityAttributeValueset,
   fetchAltSezonValueset,
   fetchClusterValueset,
+  fetchTemaKoleksiyonTipiValueset,
   fetchThemeAttrMaps,
   fetchThemeAttrsForPid,
   fetchThemeAttrsForThemes,

@@ -64,6 +64,22 @@ INSERT INTO ref_cluster (cluster_code, ad) VALUES
     ('018', 'G')
 ON CONFLICT (cluster_code) DO NOTHING;
 
+-- Tema Koleksiyon Tipi (Theme_Attributes.Koleksiyon_Tipi): PLM IDM'den doğrulanmış
+-- değerler; sync-from-plm ile güncellenir.
+INSERT INTO ref_tema_koleksiyon_tipi (kod, ad) VALUES
+    ('001', 'Ana Koleksiyon'),
+    ('002', 'Tatil Koleksiyonu'),
+    ('003', 'Ramazan'),
+    ('004', 'Bridge'),
+    ('005', 'Yılbaşı'),
+    ('006', 'Ecu'),
+    ('008', 'Cover-up'),
+    ('009', 'Insert'),
+    ('011', 'E-Ticaret'),
+    ('012', 'Sevgililer Günü'),
+    ('013', 'Hediye Destinasyonu')
+ON CONFLICT (kod) DO NOTHING;
+
 -- Global ayar: KDV oranı (spec Bölüm 4)
 INSERT INTO app_settings (key, value) VALUES
     ('kdv_orani', '0.10')

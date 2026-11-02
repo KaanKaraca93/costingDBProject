@@ -458,3 +458,32 @@ BEGIN
                     sub_category_id, lifestyle_grup_id, model_ozellik_id);
     END IF;
 END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- TEMA KOLEKSİYON TİPİ (IDM Theme_Attributes.Koleksiyon_Tipi valueset'i)
+-- Anahtar valueset kodudur (örn. "001" = Ana Koleksiyon). DİKKAT: ref_koleksiyon_tipi
+-- ile karıştırılmamalı; o tablo colorway CUD5'i (iş tarafındaki adıyla "Model
+-- Özellik": Standart / Fast Track) tutar ve adı geriye dönük uyumluluk için korunur.
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ref_tema_koleksiyon_tipi (
+    kod TEXT PRIMARY KEY,
+    ad  TEXT NOT NULL
+);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Option Plan'a Cluster ve Koleksiyon Tipi kırılımı (ikisi de tema attribute'u,
+-- Alt_Sezon gibi IDM'den gelir; metin kodla saklanır, yanında etiket):
+--   cluster / cluster_code                  -> ref_cluster (013 = B ...)
+--   koleksiyon_tipi / koleksiyon_tipi_code  -> ref_tema_koleksiyon_tipi (001 = Ana Koleksiyon ...)
+-- Bu kolonlar eklenmeden önce girilen plan B cluster + Ana Koleksiyon için
+-- yapılmıştı; boş kalan satırlar bu değerlerle doldurulur. API yeni kayıtta iki
+-- alanı da zorunlu tutar, bu yüzden geri doldurma yalnız eski satırlara dokunur.
+-- ─────────────────────────────────────────────────────────────────────────
+ALTER TABLE option_plan_parametreleri ADD COLUMN IF NOT EXISTS cluster TEXT;
+ALTER TABLE option_plan_parametreleri ADD COLUMN IF NOT EXISTS cluster_code TEXT;
+ALTER TABLE option_plan_parametreleri ADD COLUMN IF NOT EXISTS koleksiyon_tipi TEXT;
+ALTER TABLE option_plan_parametreleri ADD COLUMN IF NOT EXISTS koleksiyon_tipi_code TEXT;
+
+UPDATE option_plan_parametreleri SET cluster = 'B', cluster_code = '013' WHERE cluster_code IS NULL;
+UPDATE option_plan_parametreleri SET koleksiyon_tipi = 'Ana Koleksiyon', koleksiyon_tipi_code = '001'
+ WHERE koleksiyon_tipi_code IS NULL;

@@ -135,6 +135,24 @@ router.get('/ref/bolum', async (req, res) => {
 
 /**
  * @swagger
+ * /api/ref/tema-koleksiyon-tipi:
+ *   get:
+ *     summary: Tema Koleksiyon Tipi listesi (IDM Theme_Attributes.Koleksiyon_Tipi; 001 = Ana Koleksiyon ...) — Option Plan için
+ *     tags: [Referans Veriler]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ */
+router.get('/ref/tema-koleksiyon-tipi', async (req, res) => {
+  try {
+    res.json(await refService.listTemaKoleksiyonTipi());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
  * /api/ref/delivery:
  *   get:
  *     summary: Deliveries listesi (PLM GLrefId 76, örn. LOCAL/OVERSEAS/PRODUCTION) — Delivery Plan için
@@ -209,7 +227,7 @@ router.get('/ref/fashion-pyramid', async (req, res) => {
  * @swagger
  * /api/ref/koleksiyon-tipi:
  *   get:
- *     summary: Koleksiyon Tipi listesi (PLM GLrefId 228 / CUD5, Excel'de "FT") — Option Plan için
+ *     summary: Model Özellik listesi (colorway CUD5, PLM GLrefId 228; Standart / Fast Track). Eski adı "Koleksiyon Tipi" / "FT"; tema Koleksiyon Tipi için /ref/tema-koleksiyon-tipi
  *     tags: [Referans Veriler]
  *     responses:
  *       200:
@@ -362,14 +380,15 @@ router.put('/ref/marka-kategori/:brandId', async (req, res) => {
  */
 router.post('/ref/sync-from-plm', async (req, res) => {
   try {
-    const [lookups, altSezon, cluster, extFieldDropDown, themes] = await Promise.all([
+    const [lookups, altSezon, cluster, temaKoleksiyonTipi, extFieldDropDown, themes] = await Promise.all([
       plmLookupService.fetchAllLookups(),
       plmThemeAttributeService.fetchAltSezonValueset(),
       plmThemeAttributeService.fetchClusterValueset(),
+      plmThemeAttributeService.fetchTemaKoleksiyonTipiValueset(),
       plmLookupService.fetchExtendedFieldDropDown(),
       plmLookupService.fetchThemes()
     ]);
-    const result = await refService.syncRefTablesFromPlm({ ...lookups, altSezon, cluster });
+    const result = await refService.syncRefTablesFromPlm({ ...lookups, altSezon, cluster, temaKoleksiyonTipi });
     result.extFieldDropDown = await refService.upsertExtFieldDropDown(extFieldDropDown);
     result.theme = await refService.upsertThemes(themes);
 

@@ -32,13 +32,14 @@ Uygulama varsayılan olarak `http://localhost:3000` üzerinde çalışır.
 |---|---|
 | `decision_parameters` | Marka + Alt Kategori + Segment + LifeStyle Grubu + Sezon + Alt Sezon kırılımına göre MU/Sarf değerleri (unique constraint ile korunur) |
 | `on_adet_parametreleri` | Marka + Bölüm + Kategori + Alt Kategori + Cluster + LifeStyle Grubu + Sezon + Alt Sezon kırılımına göre Adet değeri |
-| `option_plan_parametreleri` | **RangeSayac v6.2** plan kaynağı (eski `RangeSayacv6_2.xlsx`). Her satır planlanan bir opsiyon; **Opsiyon Kodu (PH####) sistem tarafından otomatik/sıralı üretilir** (kullanıcı/Excel girmez). Boyutlar PLM lookup'larından çözümlenir: Marka(1)/Ürün Grubu=SubCategory(65)/Ürün Alt Grup=SubSubCategory(69)/Fashion Pyramid=CUD1(224)/Life Style Grup=CUD4(227)/Koleksiyon Tipi=CUD5(228)/Segment(232)/Sezon(58)/Alt Sezon. |
+| `option_plan_parametreleri` | **RangeSayac v6.2** plan kaynağı (eski `RangeSayacv6_2.xlsx`). Her satır planlanan bir opsiyon; **Opsiyon Kodu (PH####) sistem tarafından otomatik/sıralı üretilir** (kullanıcı/Excel girmez). Boyutlar PLM lookup'larından çözümlenir: Marka(1)/Ürün Grubu=SubCategory(65)/Ürün Alt Grup=SubSubCategory(69)/Fashion Pyramid=CUD1(224)/Life Style Grup=CUD4(227)/Model Özellik=CUD5(228)/Segment(232)/Sezon(58)/Alt Sezon + tema attribute'ları Cluster / Koleksiyon Tipi (IDM Theme_Attributes). |
 | `range_plan_parametreleri` | **RangeSayac v7.2** plan kaynağı (eski `Rangesayacv7_2.xlsx`). Range detay/dropdown planı + `Option Say`. `Range`=Extended Field adı → sabit `ExtFldId`; `Range Detayı`=PLM `ExtendedFieldDropDown` değeri → `DropDownValue` (=ExtFldDropDownId), `(ExtFldId + Name)` çifti ile çözümlenir. Anahtar RangeSayac `makeKey` ile aynı. |
 | `theme_plan_parametreleri` | **RangeSayac theme-category** plan kaynağı (eski `RangeSayacv3_yeni_taslakv2.xlsx`). Her satır bir (tema × kategori) kırılımı + planlanan `Opt Say`. Anahtar, o servisin `_makeKey`'i ile aynı: `(theme_id, sub_category_id, season_id, alt_sezon)`. `theme_id` boş olabilir (tema henüz açılmamış) — bu satırlar eşleştirmeye girmez. |
 | `ref_theme` | Tema referansı (PLM `Theme` entity; GenericLookUpAll'da yoktur). `ad` = PLM tema adı (`SS 27_IPK_B_SCT1`), `kisa_ad` = planlamacının raporlarda görünen kısa adı (`B-SCT1`), `pid` = IDM PID. PLM senkronu `kisa_ad`'ı **ezmez**. |
 | `delivery_plan_parametreleri` | **Delivery Plan**: Marka + Ana Kategori (Division) + Sezon + Alt Sezon + Tedarik Kaynağı (Deliveries) + Ürün Grubu (SubCategory) + Life Style Grup + Model Özellik kırılımında planlanan `option_say` (unique constraint ile korunur). Ayrıca türetilmiş `gerceklesen_tedarik_kaynagi_id` tutar. Gerçekleşen hesabını yapan widget planı `?format=plan` ile buradan okur. |
 | `ref_delivery` | Deliveries listesi (PLM GenericLookUpAll **GlrefId 76**, örn. 1=LOCAL, 2=PRODUCTION, 4=OVERSEAS). Style tarafında `StyleDeliveries.DeliveryId` / `Style.DeliveryIdList` ile karşılaşır. |
-| `ref_fashion_pyramid` / `ref_koleksiyon_tipi` / `ref_ext_field_dropdown` | Option/Range plan dropdown kaynakları; `POST /api/ref/sync-from-plm` ile PLM'den doldurulur. |
+| `ref_fashion_pyramid` / `ref_koleksiyon_tipi` / `ref_ext_field_dropdown` | Option/Range plan dropdown kaynakları; `POST /api/ref/sync-from-plm` ile PLM'den doldurulur. **`ref_koleksiyon_tipi` colorway CUD5'tir; iş tarafındaki adı "Model Özellik"** (Standart / Fast Track / Diğer). Tablo adı geriye dönük uyumluluk için değişmedi. |
+| `ref_tema_koleksiyon_tipi` | **Tema** Koleksiyon Tipi (IDM `Theme_Attributes.Koleksiyon_Tipi`; `001` = Ana Koleksiyon, `009` = Insert …). `GET /api/ref/tema-koleksiyon-tipi`; sync-from-plm ile güncellenir. CUD5 ile karıştırılmamalı. |
 | `app_settings` | Kırılıma göre değişmeyen global ayarlar (örn. `kdv_orani`, fallback değerleri) |
 
 ### Range/Option plan API'leri (RangeSayac entegrasyonu)
@@ -62,6 +63,29 @@ içe aktarma doğrula/uygula):
 > **Not:** Aşağıdaki "ID kolonu" değişikliği yalnızca Excel şablonunu ve
 > `import/*` uçlarını etkiler; `?format=plan` çıktısına ID kolonu **eklenmemiştir**,
 > yani RangeSayac tarafında hiçbir değişiklik gerekmez.
+
+#### Option Plan: Cluster ve Koleksiyon Tipi (tema kırılımları)
+
+Option Plan iki tema attribute'unda da kırılır (ikisi de Alt_Sezon gibi temanın IDM
+PID'si üzerinden gelir):
+
+| Kolon | Ref | Örnek | `?format=plan` anahtarları |
+|---|---|---|---|
+| `cluster` / `cluster_code` | `ref_cluster` | `B` / `013` | `Cluster`, `ClusterCode` |
+| `koleksiyon_tipi` / `koleksiyon_tipi_code` | `ref_tema_koleksiyon_tipi` | `Ana Koleksiyon` / `001` | `Koleksiyon Tipi`, `KoleksiyonTipiCode` |
+
+* İkisi de yeni kayıtta zorunludur. Kolonlar eklenmeden önce girilen plan B cluster +
+  Ana Koleksiyon için yapıldığından boş satırlar migration'da bu değerlerle doldurulur.
+* Güncellemede (PUT) bu alanlar istekte **hiç yoksa mevcut değer korunur**; böylece
+  alanları bilmeyen eski widget sürümleri düzenleme yaparken değerleri silmez.
+* CUD5'in (`FT` / `CUD5` anahtarları) iş tarafındaki adı **Model Özellik**'tir; plan
+  çıktısına ayrıca `Model Özellik` anahtarı eklendi, `FT` / `CUD5` korunur.
+* **Excel:** şablonda CUD5 kolonu "Model Özellik" oldu; "Koleksiyon Tipi" başlığı
+  artık tema Koleksiyon Tipi'dir. Eski şablon ("Koleksiyon Tipi" var, "Model
+  Özellik" yok) yüklenirse açık bir mesajla reddedilir; yeni şablon indirilmelidir.
+  Range Plan şablonunda da CUD5 başlığı "Model Özellik" oldu; orada eski başlık
+  ("Koleksiyon Tipi") alias olarak okunmaya devam eder.
+* Filtreler: `clusterCode`, `koleksiyonTipiCode`.
 
 ### Tema Plan API'leri (RangeSayac `theme-category` entegrasyonu)
 

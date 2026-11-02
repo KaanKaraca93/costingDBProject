@@ -9,8 +9,12 @@ function f(body, camel, snake) {
   return v === undefined || v === '' ? null : v;
 }
 
+// Tema kırılımları (Cluster / Koleksiyon Tipi): yeni kayıtta zorunlu. Güncellemede
+// istekte yoksa mevcut değer korunur (eski widget uyumu), varsa boş olamaz.
+const TEMA_KIRILIMLARI = [['clusterCode', 'cluster_code', 'Cluster'], ['koleksiyonTipiCode', 'koleksiyon_tipi_code', 'Koleksiyon Tipi']];
+
 // Opsiyon Kodu sistem tarafından otomatik üretilir; kullanıcı/Excel girmez.
-function validateBody(body) {
+function validateBody(body, { isUpdate = false } = {}) {
   const required = [
     ['brandId', 'brand_id'],
     ['subCategoryId', 'sub_category_id'], ['subSubCategoryId', 'sub_sub_category_id'],
@@ -24,6 +28,11 @@ function validateBody(body) {
   const ints = [['brandId', 'brand_id'], ['subCategoryId', 'sub_category_id'], ['subSubCategoryId', 'sub_sub_category_id'], ['seasonId', 'season_id']];
   for (const [camel, snake] of ints) {
     if (!Number.isInteger(Number(f(body, camel, snake)))) return `${camel} tam sayı olmalıdır.`;
+  }
+  for (const [camel, snake, label] of TEMA_KIRILIMLARI) {
+    const absent = body[camel] === undefined && body[snake] === undefined;
+    if (isUpdate && absent) continue;
+    if (f(body, camel, snake) == null) return `${label} zorunludur (${camel}).`;
   }
   return null;
 }
@@ -39,8 +48,8 @@ function validateBody(body) {
  */
 router.get('/option-plan-parametreleri', async (req, res) => {
   try {
-    const { brandId, subCategoryId, subSubCategoryId, seasonId, altSezon, opsiyonKodu, format } = req.query;
-    const filters = { brandId, subCategoryId, subSubCategoryId, seasonId, altSezon, opsiyonKodu };
+    const { brandId, subCategoryId, subSubCategoryId, seasonId, altSezon, opsiyonKodu, clusterCode, koleksiyonTipiCode, format } = req.query;
+    const filters = { brandId, subCategoryId, subSubCategoryId, seasonId, altSezon, opsiyonKodu, clusterCode, koleksiyonTipiCode };
     if (format === 'plan') {
       return res.json(await service.listPlan(filters));
     }
@@ -125,7 +134,7 @@ router.post('/option-plan-parametreleri', async (req, res) => {
 
 router.put('/option-plan-parametreleri/:id', async (req, res) => {
   try {
-    const error = validateBody(req.body);
+    const error = validateBody(req.body, { isUpdate: true });
     if (error) return res.status(400).json({ error });
     const updated = await service.updateParameter(req.params.id, req.body, f(req.body, 'updatedBy', 'updated_by'));
     if (!updated) return res.status(404).json({ error: 'Kayıt bulunamadı.' });

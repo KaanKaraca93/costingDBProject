@@ -26,7 +26,8 @@ const COLUMN_DEFS = [
   { key: 'rangeTag', header: 'RangeTag', width: 12, kind: 'text-list', listKey: 'rangeTags', field: 'range_tag' },
   { key: 'range', header: 'Range', width: 14, kind: 'range', listKey: 'ranges' },
   { key: 'rangeDetayi', header: 'Range Detayı', width: 20, kind: 'range-detay', listKey: 'detayNames', required: true },
-  { key: 'koleksiyonTipi', header: 'Koleksiyon Tipi', width: 18, kind: 'lookup', refKey: 'koleksiyonTipi', idKey: 'id', idField: 'cud5_id', nameField: null },
+  // CUD5 = "Model Özellik" (eski şablonlarda "Koleksiyon Tipi" başlığıyla; alias ile okunur)
+  { key: 'koleksiyonTipi', header: 'Model Özellik', aliases: ['Koleksiyon Tipi'], width: 18, kind: 'lookup', refKey: 'koleksiyonTipi', idKey: 'id', idField: 'cud5_id', nameField: null },
   { key: 'optionSay', header: 'Option Say', width: 12, kind: 'integer', field: 'option_say', min: 0, max: 100000 },
   { key: 'sezon', header: 'Sezon', width: 16, kind: 'lookup', refKey: 'sezon', idKey: 'id', idField: 'season_id', nameField: null, required: true },
   { key: 'altSezon', header: 'Alt Sezon', width: 14, kind: 'text-list', refKey: 'altSezon', listKey: 'altSezon', field: 'alt_sezon' },

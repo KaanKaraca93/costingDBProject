@@ -31,16 +31,31 @@ const COLUMN_DEFS = [
   { key: 'urunAltGrup', header: 'Ürün Alt Grup', width: 22, kind: 'lookup', refKey: 'altKategori', idKey: 'id', idField: 'sub_sub_category_id', nameField: 'urun_alt_grup', namedRange: 'ListAltKategori', required: true },
   { key: 'fashionPyramid', header: 'Fashion Pyramid', width: 18, kind: 'lookup', refKey: 'fashionPyramid', idKey: 'id', idField: 'cud1', nameField: 'fashion_pyramid', namedRange: 'ListFashionPyramid' },
   { key: 'lifeStyleGrup', header: 'Life Style Grup', width: 18, kind: 'lookup', refKey: 'lifestyleGrup', idKey: 'id', idField: 'cud4', nameField: 'life_style_grup', namedRange: 'ListLifestyleGrup' },
-  { key: 'koleksiyonTipi', header: 'Koleksiyon Tipi', width: 18, kind: 'lookup', refKey: 'koleksiyonTipi', idKey: 'id', idField: 'cud5', nameField: 'ft', namedRange: 'ListKoleksiyonTipi' },
+  { key: 'modelOzellik', header: 'Model Özellik', width: 16, kind: 'lookup', refKey: 'modelOzellik', idKey: 'id', idField: 'cud5', nameField: 'ft', namedRange: 'ListModelOzellik' },
   { key: 'segment', header: 'Segment', width: 16, kind: 'lookup', refKey: 'segment', idKey: 'id', idField: 'udf5_id', nameField: 'segment', namedRange: 'ListSegment' },
   { key: 'sezon', header: 'Sezon', width: 18, kind: 'lookup', refKey: 'sezon', idKey: 'id', idField: 'season_id', nameField: null, namedRange: 'ListSezon', required: true },
-  { key: 'altSezon', header: 'Alt Sezon', width: 16, kind: 'text-list', refKey: 'altSezon', idKey: 'id', idField: null, nameField: 'alt_sezon', namedRange: 'ListAltSezon' }
+  { key: 'altSezon', header: 'Alt Sezon', width: 16, kind: 'text-list', refKey: 'altSezon', idKey: 'id', idField: null, nameField: 'alt_sezon', namedRange: 'ListAltSezon' },
+  { key: 'cluster', header: 'Cluster', width: 12, kind: 'lookup', refKey: 'cluster', idKey: 'id', idField: 'cluster_code', nameField: 'cluster', namedRange: 'ListCluster', required: true },
+  { key: 'koleksiyonTipi', header: 'Koleksiyon Tipi', width: 20, kind: 'lookup', refKey: 'temaKoleksiyonTipi', idKey: 'id', idField: 'koleksiyon_tipi_code', nameField: 'koleksiyon_tipi', namedRange: 'ListKoleksiyonTipi', required: true }
 ];
+
+// Eski şablonlarda "Koleksiyon Tipi" başlığı colorway CUD5'i (bugünkü "Model
+// Özellik") taşıyordu. Yeni şablonda aynı başlık tema Koleksiyon Tipi'dir; eski
+// dosya yüklenirse değerler yanlış kolona okunmasın diye açıkça reddedilir.
+const LEGACY_TEMPLATE_ERROR =
+  'Bu dosya eski Option Plan şablonu: "Koleksiyon Tipi" kolonu artık tema Koleksiyon Tipi\'dir ve ' +
+  'eski değerler (Standart / Fast Track) "Model Özellik" kolonuna taşındı. Lütfen "Şablon İndir" ile yeni şablonu alın.';
+
+function isLegacyTemplate(sheet) {
+  const headers = new Set();
+  sheet.getRow(1).eachCell({ includeEmpty: false }, (cell) => headers.add(norm(cell.text != null ? cell.text : cell.value)));
+  return headers.has(norm('Koleksiyon Tipi')) && !headers.has(norm('Model Özellik'));
+}
 
 const mapRef = (rows, idCol) => (rows || []).map((r) => ({ id: r[idCol], ad: r.ad }));
 
 async function loadRefs() {
-  const [marka, kategori, altKategori, fashionPyramid, lifestyleGrup, koleksiyonTipi, segment, sezon, altSezon] = await Promise.all([
+  const [marka, kategori, altKategori, fashionPyramid, lifestyleGrup, modelOzellik, segment, sezon, altSezon, cluster, temaKoleksiyonTipi] = await Promise.all([
     refService.listMarka(),
     refService.listKategori(),
     refService.listAltKategori(),
@@ -49,7 +64,9 @@ async function loadRefs() {
     refService.listKoleksiyonTipi(),
     refService.listSegment(),
     refService.listSezon(),
-    refService.listAltSezon()
+    refService.listAltSezon(),
+    refService.listCluster(),
+    refService.listTemaKoleksiyonTipi()
   ]);
   return {
     marka: mapRef(marka, 'marka_id'),
@@ -57,10 +74,12 @@ async function loadRefs() {
     altKategori: mapRef(altKategori, 'alt_kategori_id'),
     fashionPyramid: mapRef(fashionPyramid, 'id'),
     lifestyleGrup: mapRef(lifestyleGrup, 'lifestyle_grup_id'),
-    koleksiyonTipi: mapRef(koleksiyonTipi, 'id'),
+    modelOzellik: mapRef(modelOzellik, 'id'),
     segment: mapRef(segment, 'segment_id'),
     sezon: mapRef(sezon, 'sezon_id'),
-    altSezon: mapRef(altSezon, 'alt_sezon_code')
+    altSezon: mapRef(altSezon, 'alt_sezon_code'),
+    cluster: mapRef(cluster, 'cluster_code'),
+    temaKoleksiyonTipi: mapRef(temaKoleksiyonTipi, 'kod')
   };
 }
 
@@ -210,6 +229,7 @@ async function parseAndValidateWorkbookBuffer(buffer) {
   await workbook.xlsx.load(buffer);
   const sheet = workbook.getWorksheet(SHEET_NAME) || workbook.worksheets[0];
   if (!sheet) throw new Error('Excel dosyasında beklenen sayfa bulunamadı.');
+  if (isLegacyTemplate(sheet)) throw new Error(LEGACY_TEMPLATE_ERROR);
   const [refs, existingRows] = await Promise.all([loadRefs(), optionPlanParameterService.listParameters()]);
   return validateSheetRows(sheet, refs, existingRows);
 }

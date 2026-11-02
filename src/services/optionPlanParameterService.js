@@ -26,6 +26,10 @@ const BASE_SELECT = `
     p.udf5_id,
     p.season_id,
     p.alt_sezon,
+    p.cluster,
+    p.cluster_code,
+    p.koleksiyon_tipi,
+    p.koleksiyon_tipi_code,
     p.created_at,
     p.updated_at,
     p.updated_by
@@ -36,8 +40,18 @@ const FIELDS = [
   'opsiyon_kodu', 'marka', 'brand_id', 'urun_grubu', 'sub_category_id',
   'urun_alt_grup', 'sub_sub_category_id', 'fashion_pyramid', 'cud1',
   'life_style_grup', 'cud4', 'ft', 'cud5', 'segment', 'udf5_id',
-  'season_id', 'alt_sezon'
+  'season_id', 'alt_sezon', 'cluster', 'cluster_code', 'koleksiyon_tipi', 'koleksiyon_tipi_code'
 ];
+
+// Sonradan eklenen tema kırılımları. Güncellemede istekte HİÇ yoksa (alan adı
+// gönderilmemişse) mevcut değer korunur: bu alanları bilmeyen eski widget
+// sürümleri bir satırı düzenlediğinde Cluster / Koleksiyon Tipi silinmesin.
+const KEEP_IF_ABSENT_ON_UPDATE = ['cluster', 'cluster_code', 'koleksiyon_tipi', 'koleksiyon_tipi_code'];
+
+function isAbsent(data, snake) {
+  const camel = snake.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+  return data[snake] === undefined && data[camel] === undefined;
+}
 
 // data: hem camelCase hem snake_case anahtarları kabul et (widget/Excel uyumu)
 function pick(data, snake) {
@@ -64,6 +78,8 @@ async function listParameters(filters = {}) {
   addFilter('season_id', filters.seasonId);
   addFilter('alt_sezon', filters.altSezon);
   addFilter('opsiyon_kodu', filters.opsiyonKodu);
+  addFilter('cluster_code', filters.clusterCode);
+  addFilter('koleksiyon_tipi_code', filters.koleksiyonTipiCode);
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const { rows } = await pool.query(
@@ -185,7 +201,7 @@ async function commitMany(rowsData, updatedBy) {
 
 async function updateParameter(id, data, updatedBy) {
   // opsiyon_kodu değişmez (sistem üretimli); güncellemede dışarıda tutulur.
-  const updatable = FIELDS.filter((f) => f !== 'opsiyon_kodu');
+  const updatable = FIELDS.filter((f) => f !== 'opsiyon_kodu' && !(KEEP_IF_ABSENT_ON_UPDATE.includes(f) && isAbsent(data, f)));
   const setClause = updatable.map((f, i) => `${f} = $${i + 1}`).join(', ');
   const values = updatable.map((f) => pick(data, f));
   const { rowCount } = await pool.query(
@@ -241,7 +257,13 @@ function toPlanShape(row) {
     Segment: row.segment,
     UDF5Id: row.udf5_id,
     SeasonId: row.season_id,
-    Alt_Sezon: row.alt_sezon
+    Alt_Sezon: row.alt_sezon,
+    // Eklemeler (mevcut anahtarlar korunur). FT/CUD5 = colorway CUD5 = "Model Özellik".
+    'Model Özellik': row.ft,
+    Cluster: row.cluster,                       // tema Cluster etiketi (örn. "B")
+    ClusterCode: row.cluster_code,              // tema Cluster kodu (örn. "013")
+    'Koleksiyon Tipi': row.koleksiyon_tipi,     // tema Koleksiyon_Tipi etiketi (örn. "Ana Koleksiyon")
+    KoleksiyonTipiCode: row.koleksiyon_tipi_code // tema Koleksiyon_Tipi kodu (örn. "001")
   };
 }
 

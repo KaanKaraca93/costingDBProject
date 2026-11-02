@@ -57,7 +57,9 @@ function resolveColumnPositions(sheet, columnDefs) {
   const positions = {};
   let matched = 0;
   for (const col of columnDefs) {
-    const found = byHeader.get(norm(col.header));
+    // aliases: yeniden adlandırılan kolonların eski başlıkları (eski şablonlar okunabilsin)
+    const found = byHeader.get(norm(col.header)) ||
+      (col.aliases || []).map((a) => byHeader.get(norm(a))).find(Boolean);
     if (found) {
       positions[col.key] = found;
       matched++;
