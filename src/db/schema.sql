@@ -415,16 +415,11 @@ BEGIN
     ) THEN
         ALTER TABLE delivery_plan_parametreleri DROP CONSTRAINT delivery_plan_parametreleri_unique_kirilim;
     END IF;
-
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
-        WHERE table_name = 'delivery_plan_parametreleri'
-          AND constraint_name = 'delivery_plan_parametreleri_unique_kirilim_v2'
-    ) THEN
-        ALTER TABLE delivery_plan_parametreleri
-            ADD CONSTRAINT delivery_plan_parametreleri_unique_kirilim_v2
-            UNIQUE (marka_id, division_id, sezon_id, alt_sezon_code, delivery_id, sub_category_id, lifestyle_grup_id);
-    END IF;
+    -- Ara sürüm (v2: 7 kolon) burada artık kurulmaz. Güncel UNIQUE kırılım aşağıdaki
+    -- Model Özellik bloğunda v3 olarak kurulur. v2'yi burada "yoksa kur" diye
+    -- yeniden kurmak, v3'e geçmiş ve Model Özellik'e göre ayrışan satırları olan
+    -- bir tabloda her deploy'da hataya düşüyordu (yalnız Model Özellik'i farklı
+    -- satırlar 7 kolonluk v2'yi ihlal eder).
 END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────
